@@ -315,6 +315,7 @@
               ? `<button class="btn btn-danger" onclick="suspendTenant('${esc(t.slug)}','${esc(t.county_name)}')">Suspend</button>`
               : `<button class="btn btn-add" style="padding:5px 12px;font-size:11px" onclick="activateTenant('${esc(t.slug)}')">Activate</button>`
             }
+            <button class="btn" style="background:#7f1d1d;color:#fff;padding:5px 12px;font-size:11px" onclick="deleteTenant('${esc(t.slug)}','${esc(t.county_name)}')">Delete</button>
           </div>
         </td>
       </tr>`).join('');
@@ -447,11 +448,19 @@
     toast('Account activated.', 'success'); loadTenants(); loadStats();
   }
 
+  async function deleteTenant(slug, name) {
+    if (!confirm(`Permanently delete "${name}"? This cannot be undone.`)) return;
+    const res = await fetch(`/manage/api/tenants/${slug}`, { method:'DELETE', headers: H() });
+    if (res.ok) { toast(`${name} deleted.`, 'success'); loadTenants(); loadStats(); }
+    else { toast('Delete failed.', 'error'); }
+  }
+
   // Make functions global for onclick
   window.editTenant = editTenant;
   window.resetPass = resetPass;
   window.suspendTenant = suspendTenant;
   window.activateTenant = activateTenant;
+  window.deleteTenant = deleteTenant;
 
   function esc(s) { return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function toast(msg, type='success') { const el=document.getElementById('toast'); el.textContent=msg; el.className=`toast show ${type}`; setTimeout(()=>el.classList.remove('show'),3000); }
