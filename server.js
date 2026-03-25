@@ -334,9 +334,10 @@ app.delete('/manage/api/tenants/:slug', superAuth, async (req, res) => {
   const t = dbGet(mdb, `SELECT id FROM tenants WHERE slug=?`, [req.params.slug]);
   if (!t) return res.status(404).json({ error: 'Not found' });
   dbRun(mdb, MASTER_DB_PATH, `DELETE FROM tenants WHERE slug=?`, [req.params.slug]);
-  // Remove from cache
+  // Remove from cache and delete db file
   const dbPath = path.join(TENANTS_DIR, `${req.params.slug}.db`);
   delete dbCache[dbPath];
+  try { require('fs').unlinkSync(dbPath); } catch(e) {}
   res.json({ ok: true });
 });
 
