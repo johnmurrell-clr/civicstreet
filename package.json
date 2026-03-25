@@ -1,0 +1,17 @@
+{
+  "name": "civicstreet",
+  "version": "1.0.0",
+  "description": "CivicStreet — Road Name Index SaaS by CLR Mapping Solutions",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "csv-parse": "^5.5.3",
+    "express": "^4.18.2",
+    "multer": "^1.4.5-lts.1",
+    "sql.js": "^1.10.3",
+    "xlsx": "^0.18.5"
+  }
+}
