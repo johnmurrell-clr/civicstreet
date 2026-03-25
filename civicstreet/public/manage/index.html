@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CivicStreet — Management Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--navy:#0d1b2a;--ink:#1a2e42;--steel:#2e5984;--sky:#4a90d9;--ice:#c8dff5;--fog:#e8f1fa;--white:#f5f9ff;--accent:#e8a020;--green:#2a9d5c;--red:#c0392b;--text:#0d1b2a;--muted:#5a7a9a;--border:#c0d4e8}
+    html,body{background:#f0f4f8;color:var(--text);font-family:'Syne',sans-serif;min-height:100vh}
+
+    /* LOGIN */
+    #loginScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--navy)}
+    #loginScreen::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(90deg,transparent,transparent 60px,rgba(255,255,255,0.015) 60px,rgba(255,255,255,0.015) 61px)}
+    .login-card{position:relative;background:var(--ink);border:1px solid rgba(255,255,255,0.08);border-top:3px solid var(--accent);border-radius:8px;padding:44px 48px;width:100%;max-width:420px;box-shadow:0 24px 64px rgba(0,0,0,0.5)}
+    .login-logo{font-size:11px;font-family:'DM Mono',monospace;letter-spacing:0.15em;text-transform:uppercase;color:var(--accent);margin-bottom:8px}
+    .login-card h2{font-size:24px;font-weight:800;color:#fff;margin-bottom:4px}
+    .login-card p{font-size:13px;color:var(--muted);margin-bottom:32px}
+    .field-label{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--ice);margin-bottom:6px;display:block}
+    .field-input{width:100%;padding:12px 14px;background:var(--navy);border:2px solid var(--steel);border-radius:4px;color:#fff;font-family:'DM Mono',monospace;font-size:14px;outline:none;margin-bottom:18px;transition:border-color 0.15s}
+    .field-input:focus{border-color:var(--sky)}
+    .btn-primary{width:100%;padding:13px;background:var(--sky);color:#fff;border:none;border-radius:4px;font-family:'Syne',sans-serif;font-size:14px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;cursor:pointer;transition:background 0.15s}
+    .btn-primary:hover{background:#3a7fc8}
+    .login-error{color:#e74c3c;font-size:13px;margin-top:12px;text-align:center;display:none}
+
+    /* APP */
+    #app{display:none;min-height:100vh}
+    .topbar{background:var(--navy);border-bottom:3px solid var(--accent);padding:0 28px;display:flex;align-items:center;gap:16px;height:56px}
+    .topbar-logo{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:var(--accent)}
+    .topbar-brand{font-size:16px;font-weight:800;color:#fff}
+    .topbar-brand span{color:var(--sky)}
+    .topbar-spacer{flex:1}
+    .btn-logout{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:var(--ice);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;padding:6px 14px;border-radius:3px;cursor:pointer}
+    .btn-logout:hover{background:rgba(255,255,255,0.12)}
+
+    .nav-tabs{background:var(--ink);padding:0 28px;display:flex;border-bottom:1px solid rgba(255,255,255,0.06)}
+    .nav-tab{padding:12px 20px;color:var(--muted);font-size:13px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color 0.15s,border-color 0.15s;background:none;border-top:none;border-left:none;border-right:none}
+    .nav-tab.active{color:#fff;border-bottom-color:var(--sky)}
+    .nav-tab:hover:not(.active){color:var(--ice)}
+
+    .content{max-width:1200px;margin:0 auto;padding:28px}
+    .panel{display:none}
+    .panel.active{display:block}
+
+    /* Stats */
+    .stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+    .stat-card{background:#fff;border:1px solid var(--border);border-radius:6px;padding:20px;border-top:3px solid var(--sky)}
+    .stat-value{font-size:32px;font-weight:800;color:var(--navy);font-family:'DM Mono',monospace}
+    .stat-label{font-size:12px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:0.08em}
+    .stat-card.green{border-top-color:var(--green)}
+    .stat-card.amber{border-top-color:var(--accent)}
+    .stat-card.red{border-top-color:var(--red)}
+
+    /* Cards */
+    .card{background:#fff;border:1px solid var(--border);border-radius:6px;padding:24px;margin-bottom:20px}
+    .card h3{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--steel);margin-bottom:16px;font-family:'DM Mono',monospace}
+
+    /* Toolbar */
+    .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+    .toolbar input{flex:1;min-width:200px;padding:9px 14px;border:1px solid var(--border);border-radius:4px;font-family:'DM Mono',monospace;font-size:13px;outline:none;color:var(--navy)}
+    .toolbar input:focus{border-color:var(--sky)}
+
+    .btn{padding:9px 18px;border-radius:4px;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;border:none;transition:background 0.15s}
+    .btn-add{background:var(--green);color:#fff}
+    .btn-add:hover{background:#23865e}
+    .btn-sky{background:var(--sky);color:#fff;padding:5px 12px;font-size:11px}
+    .btn-sky:hover{background:#3a7fc8}
+    .btn-warn{background:var(--accent);color:var(--navy);padding:5px 12px;font-size:11px}
+    .btn-warn:hover{background:#d4921c}
+    .btn-danger{background:#fde8e6;color:var(--red);padding:5px 12px;font-size:11px;border:1px solid #f5c6c2}
+    .btn-danger:hover{background:#fbd0cc}
+    .btn-gray{background:#e2eaf3;color:var(--ink)}
+    .btn-gray:hover{background:#d2dce9}
+
+    /* Table */
+    .data-table{width:100%;border-collapse:collapse;font-size:13px}
+    .data-table th{background:var(--navy);color:var(--ice);padding:9px 12px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;text-align:left}
+    .data-table td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+    .data-table tr:last-child td{border-bottom:none}
+    .data-table tr:hover td{background:var(--fog)}
+    .data-table tr:nth-child(even) td{background:var(--white)}
+    .data-table tr:nth-child(even):hover td{background:var(--fog)}
+    .mono{font-family:'DM Mono',monospace}
+    .td-actions{display:flex;gap:6px;flex-wrap:wrap}
+
+    .badge{display:inline-block;padding:3px 8px;border-radius:3px;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase}
+    .badge-active{background:#e8f8f0;color:var(--green)}
+    .badge-suspended{background:#fde8e6;color:var(--red)}
+    .badge-standard{background:var(--fog);color:var(--steel)}
+    .badge-premium{background:#fdf3e4;color:#c07000}
+
+    /* Modal */
+    .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:100;align-items:center;justify-content:center}
+    .modal-bg.open{display:flex}
+    .modal{background:#fff;border-radius:8px;border-top:3px solid var(--sky);padding:32px;width:100%;max-width:560px;box-shadow:0 24px 64px rgba(0,0,0,0.2);max-height:90vh;overflow-y:auto}
+    .modal h3{font-size:16px;font-weight:700;margin-bottom:20px}
+    .modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    .modal-field{margin-bottom:0}
+    .modal-field.full{grid-column:1/-1}
+    .modal-field label{display:block;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--steel);margin-bottom:5px}
+    .modal-field input,.modal-field select,.modal-field textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:4px;font-family:'DM Mono',monospace;font-size:13px;outline:none;color:var(--navy);transition:border-color 0.15s}
+    .modal-field input:focus,.modal-field select:focus,.modal-field textarea:focus{border-color:var(--sky)}
+    .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:24px}
+    .modal-error{color:var(--red);font-size:12px;margin-top:10px;display:none}
+
+    /* Credentials box */
+    .creds-box{background:var(--navy);border-radius:6px;padding:20px;margin-top:16px;display:none}
+    .creds-box h4{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);margin-bottom:12px}
+    .creds-row{display:flex;justify-content:space-between;margin-bottom:8px;font-family:'DM Mono',monospace;font-size:13px}
+    .creds-label{color:var(--muted)}
+    .creds-value{color:#fff;font-weight:500}
+    .creds-note{font-size:12px;color:var(--muted);margin-top:12px;line-height:1.5}
+
+    .toast{position:fixed;bottom:28px;right:28px;background:var(--navy);color:#fff;padding:12px 20px;border-radius:6px;font-size:13px;font-family:'DM Mono',monospace;box-shadow:0 8px 24px rgba(0,0,0,0.3);z-index:200;opacity:0;transform:translateY(12px);transition:opacity 0.2s,transform 0.2s;pointer-events:none}
+    .toast.show{opacity:1;transform:translateY(0)}
+    .toast.success{border-left:3px solid var(--green)}
+    .toast.error{border-left:3px solid var(--red)}
+
+    @media(max-width:768px){.stats-row{grid-template-columns:1fr 1fr}.modal-grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">CLR Mapping Solutions</div>
+    <h2>CivicStreet</h2>
+    <p>Management Portal — Staff Only</p>
+    <label class="field-label">Username</label>
+    <input type="text" id="loginUser" class="field-input" placeholder="clradmin" autocomplete="username" />
+    <label class="field-label">Password</label>
+    <input type="password" id="loginPass" class="field-input" placeholder="••••••••" autocomplete="current-password" />
+    <button class="btn-primary" id="loginBtn">Sign In</button>
+    <div class="login-error" id="loginError">Invalid credentials.</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-logo">CLR Mapping Solutions</div>
+    <div class="topbar-brand">Civic<span>Street</span></div>
+    <div class="topbar-spacer"></div>
+    <button class="btn-logout" id="logoutBtn">Sign Out</button>
+  </div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" data-panel="dashboard">Dashboard</button>
+    <button class="nav-tab" data-panel="counties">Counties</button>
+  </div>
+
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div class="panel active" id="panel-dashboard">
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-value" id="statTotal">—</div><div class="stat-label">Total Counties</div></div>
+        <div class="stat-card green"><div class="stat-value" id="statActive">—</div><div class="stat-label">Active</div></div>
+        <div class="stat-card amber"><div class="stat-value" id="statMRR">—</div><div class="stat-label">Monthly Revenue</div></div>
+        <div class="stat-card red"><div class="stat-value" id="statSuspended">—</div><div class="stat-label">Suspended</div></div>
+      </div>
+      <div class="card">
+        <h3>Recent Counties</h3>
+        <div style="overflow-x:auto"><table class="data-table" id="recentTable">
+          <thead><tr><th>County</th><th>State</th><th>Slug</th><th>Plan</th><th>Monthly</th><th>Roads</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="recentBody"><tr><td colspan="8" style="padding:30px;text-align:center;color:var(--muted)">Loading...</td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <!-- COUNTIES -->
+    <div class="panel" id="panel-counties">
+      <div class="card">
+        <div class="toolbar">
+          <input type="text" id="countySearch" placeholder="Search counties..." />
+          <button class="btn btn-add" id="addCountyBtn">+ Add County</button>
+        </div>
+        <div style="overflow-x:auto"><table class="data-table">
+          <thead><tr><th>County</th><th>State</th><th>Slug / URL</th><th>Contact</th><th>Plan</th><th>Fees</th><th>Roads</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="countiesBody"><tr><td colspan="9" style="padding:30px;text-align:center;color:var(--muted)">Loading...</td></tr></tbody>
+        </table></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ADD/EDIT MODAL -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h3 id="modalTitle">Add County</h3>
+    <input type="hidden" id="editSlug" />
+    <div class="modal-grid">
+      <div class="modal-field"><label>County Name *</label><input type="text" id="f_county_name" placeholder="Harris County" /></div>
+      <div class="modal-field"><label>State</label><input type="text" id="f_state" placeholder="TX" maxlength="2" /></div>
+      <div class="modal-field"><label>Slug / Subdomain *</label><input type="text" id="f_slug" placeholder="harris" /></div>
+      <div class="modal-field"><label>Plan</label>
+        <select id="f_plan"><option value="standard">Standard</option><option value="premium">Premium</option></select>
+      </div>
+      <div class="modal-field"><label>Contact Name</label><input type="text" id="f_contact_name" placeholder="John Smith" /></div>
+      <div class="modal-field"><label>Contact Email</label><input type="text" id="f_contact_email" placeholder="john@harriscounty.gov" /></div>
+      <div class="modal-field"><label>Setup Fee ($)</label><input type="number" id="f_setup_fee" value="500" /></div>
+      <div class="modal-field"><label>Monthly Fee ($)</label><input type="number" id="f_monthly_fee" value="99" /></div>
+      <div class="modal-field full"><label>Notes</label><textarea id="f_notes" rows="2" placeholder="Any notes about this account..."></textarea></div>
+    </div>
+    <div class="creds-box" id="credsBox">
+      <h4>Admin Credentials — Save These Now</h4>
+      <div class="creds-row"><span class="creds-label">URL</span><span class="creds-value" id="credsUrl">—</span></div>
+      <div class="creds-row"><span class="creds-label">Username</span><span class="creds-value" id="credsUser">—</span></div>
+      <div class="creds-row"><span class="creds-label">Password</span><span class="creds-value" id="credsPass">—</span></div>
+      <div class="creds-note">Send these credentials to the county administrator. The password cannot be recovered — only reset.</div>
+    </div>
+    <div class="modal-error" id="modalError"></div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" id="modalCancel">Cancel</button>
+      <button class="btn btn-add" id="modalSave">Create County</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  let TOKEN = sessionStorage.getItem('superToken') || '';
+  let allTenants = [];
+
+  function H() { return { 'Content-Type': 'application/json', 'x-super-token': TOKEN }; }
+
+  if (TOKEN) checkAndShow();
+
+  document.getElementById('loginBtn').addEventListener('click', login);
+  document.getElementById('loginPass').addEventListener('keydown', e => { if(e.key==='Enter') login(); });
+
+  async function login() {
+    const u = document.getElementById('loginUser').value.trim();
+    const p = document.getElementById('loginPass').value;
+    const errEl = document.getElementById('loginError');
+    errEl.style.display = 'none';
+    const res = await fetch('/manage/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username:u,password:p}) });
+    const data = await res.json();
+    if (!res.ok) { errEl.style.display='block'; return; }
+    TOKEN = data.token; sessionStorage.setItem('superToken', TOKEN); showApp();
+  }
+
+  async function checkAndShow() {
+    const res = await fetch('/manage/api/stats', { headers: H() });
+    if (res.ok) showApp(); else { TOKEN=''; sessionStorage.removeItem('superToken'); }
+  }
+
+  function showApp() {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    loadStats(); loadTenants();
+  }
+
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    await fetch('/manage/api/logout', { method:'POST', headers: H() });
+    sessionStorage.removeItem('superToken'); location.reload();
+  });
+
+  document.querySelectorAll('.nav-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.nav-tab').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('panel-'+btn.dataset.panel).classList.add('active');
+    });
+  });
+
+  async function loadStats() {
+    const d = await fetch('/manage/api/stats', { headers: H() }).then(r=>r.json());
+    document.getElementById('statTotal').textContent = d.total;
+    document.getElementById('statActive').textContent = d.active;
+    document.getElementById('statSuspended').textContent = d.suspended;
+    document.getElementById('statMRR').textContent = '$'+Number(d.mrr).toLocaleString();
+  }
+
+  async function loadTenants() {
+    const data = await fetch('/manage/api/tenants', { headers: H() }).then(r=>r.json());
+    allTenants = data.tenants || [];
+    renderTenants(allTenants);
+    renderRecent(allTenants.slice(0,8));
+  }
+
+  let searchTimer = null;
+  document.getElementById('countySearch').addEventListener('input', e => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      const q = e.target.value.toLowerCase();
+      renderTenants(q ? allTenants.filter(t => t.county_name.toLowerCase().includes(q) || t.slug.includes(q)) : allTenants);
+    }, 200);
+  });
+
+  function renderTenants(tenants) {
+    const tbody = document.getElementById('countiesBody');
+    if (!tenants.length) { tbody.innerHTML=`<tr><td colspan="9" style="padding:30px;text-align:center;color:var(--muted)">No counties found.</td></tr>`; return; }
+    tbody.innerHTML = tenants.map(t => `
+      <tr>
+        <td style="font-weight:600">${esc(t.county_name)}</td>
+        <td class="mono">${esc(t.state||'')}</td>
+        <td>
+          <span class="mono" style="font-size:12px;color:var(--muted)">${esc(t.slug)}.civicstreet.us</span>
+        </td>
+        <td style="font-size:12px">${esc(t.contact_name||'—')}<br><span style="color:var(--muted)">${esc(t.contact_email||'')}</span></td>
+        <td><span class="badge badge-${t.plan||'standard'}">${t.plan||'standard'}</span></td>
+        <td class="mono" style="font-size:12px">$${t.setup_fee||0} setup<br>$${t.monthly_fee||0}/mo</td>
+        <td class="mono">${(t.road_count||0).toLocaleString()}</td>
+        <td><span class="badge badge-${t.status||'active'}">${t.status||'active'}</span></td>
+        <td>
+          <div class="td-actions">
+            <button class="btn btn-sky" onclick="editTenant('${esc(t.slug)}')">Edit</button>
+            <button class="btn btn-warn" onclick="resetPass('${esc(t.slug)}','${esc(t.county_name)}')">Reset PW</button>
+            ${t.status==='active'
+              ? `<button class="btn btn-danger" onclick="suspendTenant('${esc(t.slug)}','${esc(t.county_name)}')">Suspend</button>`
+              : `<button class="btn btn-add" style="padding:5px 12px;font-size:11px" onclick="activateTenant('${esc(t.slug)}')">Activate</button>`
+            }
+          </div>
+        </td>
+      </tr>`).join('');
+  }
+
+  function renderRecent(tenants) {
+    const tbody = document.getElementById('recentBody');
+    tbody.innerHTML = tenants.map(t => `
+      <tr>
+        <td style="font-weight:600">${esc(t.county_name)}</td>
+        <td class="mono">${esc(t.state||'')}</td>
+        <td class="mono" style="font-size:12px;color:var(--muted)">${esc(t.slug)}</td>
+        <td><span class="badge badge-${t.plan||'standard'}">${t.plan||'standard'}</span></td>
+        <td class="mono">$${t.monthly_fee||0}</td>
+        <td class="mono">${(t.road_count||0).toLocaleString()}</td>
+        <td><span class="badge badge-${t.status||'active'}">${t.status||'active'}</span></td>
+        <td><button class="btn btn-sky" onclick="editTenant('${esc(t.slug)}')">Edit</button></td>
+      </tr>`).join('');
+  }
+
+  // ── ADD / EDIT ──────────────────────────────────────────────────────────
+  document.getElementById('addCountyBtn').addEventListener('click', () => openModal());
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  document.getElementById('modalBg').addEventListener('click', e => { if(e.target===document.getElementById('modalBg')) closeModal(); });
+
+  function openModal(data) {
+    const isEdit = !!data;
+    document.getElementById('modalTitle').textContent = isEdit ? 'Edit County' : 'Add County';
+    document.getElementById('modalSave').textContent  = isEdit ? 'Save Changes' : 'Create County';
+    document.getElementById('editSlug').value         = data?.slug || '';
+    document.getElementById('f_county_name').value   = data?.county_name || '';
+    document.getElementById('f_state').value         = data?.state || '';
+    document.getElementById('f_slug').value          = data?.slug || '';
+    document.getElementById('f_slug').disabled       = isEdit;
+    document.getElementById('f_plan').value          = data?.plan || 'standard';
+    document.getElementById('f_contact_name').value  = data?.contact_name || '';
+    document.getElementById('f_contact_email').value = data?.contact_email || '';
+    document.getElementById('f_setup_fee').value     = data?.setup_fee ?? 500;
+    document.getElementById('f_monthly_fee').value   = data?.monthly_fee ?? 99;
+    document.getElementById('f_notes').value         = data?.notes || '';
+    document.getElementById('credsBox').style.display = 'none';
+    document.getElementById('modalError').style.display = 'none';
+    document.getElementById('modalBg').classList.add('open');
+    document.getElementById('f_county_name').focus();
+  }
+
+  function closeModal() {
+    document.getElementById('modalBg').classList.remove('open');
+    document.getElementById('f_slug').disabled = false;
+  }
+
+  async function editTenant(slug) {
+    const res = await fetch(`/manage/api/tenants/${slug}`, { headers: H() });
+    const data = await res.json();
+    openModal(data);
+  }
+
+  // Auto-fill slug from county name
+  document.getElementById('f_county_name').addEventListener('input', e => {
+    const slugEl = document.getElementById('f_slug');
+    if (!slugEl.disabled && !slugEl.dataset.manual) {
+      slugEl.value = e.target.value.toLowerCase()
+        .replace(/\s+county$/i,'').replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
+    }
+  });
+  document.getElementById('f_slug').addEventListener('input', e => { e.target.dataset.manual = e.target.value ? '1' : ''; });
+
+  document.getElementById('modalSave').addEventListener('click', async () => {
+    const slug = document.getElementById('editSlug').value;
+    const isEdit = !!slug;
+    const errEl = document.getElementById('modalError');
+    errEl.style.display = 'none';
+
+    const payload = {
+      county_name:   document.getElementById('f_county_name').value.trim(),
+      state:         document.getElementById('f_state').value.trim().toUpperCase(),
+      slug:          document.getElementById('f_slug').value.trim(),
+      plan:          document.getElementById('f_plan').value,
+      contact_name:  document.getElementById('f_contact_name').value.trim(),
+      contact_email: document.getElementById('f_contact_email').value.trim(),
+      setup_fee:     parseFloat(document.getElementById('f_setup_fee').value) || 0,
+      monthly_fee:   parseFloat(document.getElementById('f_monthly_fee').value) || 0,
+      notes:         document.getElementById('f_notes').value.trim(),
+      status:        'active',
+    };
+
+    if (!payload.county_name) { errEl.textContent='County name is required.'; errEl.style.display='block'; return; }
+    if (!isEdit && !payload.slug) { errEl.textContent='Slug is required.'; errEl.style.display='block'; return; }
+
+    const url    = isEdit ? `/manage/api/tenants/${slug}` : '/manage/api/tenants';
+    const method = isEdit ? 'PUT' : 'POST';
+    const res    = await fetch(url, { method, headers: H(), body: JSON.stringify(payload) });
+    const data   = await res.json();
+
+    if (!res.ok) { errEl.textContent = data.error; errEl.style.display='block'; return; }
+
+    if (!isEdit && data.admin_password) {
+      document.getElementById('credsUrl').textContent  = `${data.slug}.civicstreet.us`;
+      document.getElementById('credsUser').textContent = data.admin_username;
+      document.getElementById('credsPass').textContent = data.admin_password;
+      document.getElementById('credsBox').style.display = 'block';
+      document.getElementById('modalSave').style.display = 'none';
+      document.getElementById('modalCancel').textContent = 'Done';
+    } else {
+      closeModal();
+    }
+
+    toast(isEdit ? 'County updated.' : 'County created!', 'success');
+    loadTenants(); loadStats();
+  });
+
+  async function resetPass(slug, name) {
+    if (!confirm(`Reset admin password for ${name}?`)) return;
+    const res  = await fetch(`/manage/api/tenants/${slug}/reset-password`, { method:'POST', headers: H() });
+    const data = await res.json();
+    if (res.ok) {
+      alert(`New credentials for ${name}:\n\nUsername: ${data.admin_username}\nPassword: ${data.admin_password}\n\nSave these — they cannot be recovered.`);
+      toast('Password reset.', 'success');
+    } else toast('Reset failed.', 'error');
+  }
+
+  async function suspendTenant(slug, name) {
+    if (!confirm(`Suspend ${name}? Their public site will show a suspended message.`)) return;
+    await fetch(`/manage/api/tenants/${slug}/suspend`, { method:'POST', headers: H() });
+    toast(`${name} suspended.`, 'success'); loadTenants(); loadStats();
+  }
+
+  async function activateTenant(slug) {
+    await fetch(`/manage/api/tenants/${slug}/activate`, { method:'POST', headers: H() });
+    toast('Account activated.', 'success'); loadTenants(); loadStats();
+  }
+
+  // Make functions global for onclick
+  window.editTenant = editTenant;
+  window.resetPass = resetPass;
+  window.suspendTenant = suspendTenant;
+  window.activateTenant = activateTenant;
+
+  function esc(s) { return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function toast(msg, type='success') { const el=document.getElementById('toast'); el.textContent=msg; el.className=`toast show ${type}`; setTimeout(()=>el.classList.remove('show'),3000); }
+</script>
+</body>
+</html>

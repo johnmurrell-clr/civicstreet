@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Road Index — Admin Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy:#0d1b2a; --ink:#1a2e42; --steel:#2e5984; --sky:#4a90d9;
+      --ice:#c8dff5; --fog:#e8f1fa; --white:#f5f9ff; --accent:#e8a020;
+      --green:#2a9d5c; --red:#c0392b; --text:#0d1b2a; --muted:#5a7a9a; --border:#c0d4e8;
+    }
+    html, body { background:#f0f4f8; color:var(--text); font-family:'Syne',sans-serif; min-height:100vh; }
+    #loginScreen { min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--navy); }
+    #loginScreen::before { content:''; position:fixed; inset:0;
+      background:repeating-linear-gradient(90deg,transparent,transparent 60px,rgba(255,255,255,.015) 60px,rgba(255,255,255,.015) 61px),
+                repeating-linear-gradient(0deg,transparent,transparent 60px,rgba(255,255,255,.015) 60px,rgba(255,255,255,.015) 61px); }
+    .login-card { position:relative; background:var(--ink); border:1px solid rgba(255,255,255,.08); border-top:3px solid var(--accent); border-radius:8px; padding:44px 48px; width:100%; max-width:400px; box-shadow:0 24px 64px rgba(0,0,0,.5); }
+    .login-card h2 { font-size:22px; font-weight:800; color:#fff; margin-bottom:4px; }
+    .login-card p  { font-size:13px; color:var(--muted); margin-bottom:32px; }
+    .field-label { font-family:'DM Mono',monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--ice); margin-bottom:6px; display:block; }
+    .field-input { width:100%; padding:12px 14px; background:var(--navy); border:2px solid var(--steel); border-radius:4px; color:#fff; font-family:'DM Mono',monospace; font-size:14px; outline:none; margin-bottom:18px; transition:border-color .15s; }
+    .field-input:focus { border-color:var(--sky); }
+    .btn-primary { width:100%; padding:13px; background:var(--sky); color:#fff; border:none; border-radius:4px; font-family:'Syne',sans-serif; font-size:14px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; cursor:pointer; }
+    .btn-primary:hover { background:#3a7fc8; }
+    .login-error { color:#e74c3c; font-size:13px; margin-top:12px; text-align:center; display:none; }
+    #app { display:none; min-height:100vh; }
+    .topbar { background:var(--navy); border-bottom:3px solid var(--accent); padding:0 28px; display:flex; align-items:center; gap:16px; height:56px; }
+    .topbar-brand { font-size:15px; font-weight:800; color:#fff; }
+    .topbar-brand span { color:var(--sky); }
+    .topbar-badge { background:var(--accent); color:var(--navy); font-family:'DM Mono',monospace; font-size:9px; font-weight:500; letter-spacing:.15em; text-transform:uppercase; padding:3px 8px; border-radius:2px; }
+    .topbar-spacer { flex:1; }
+    .topbar-nav a { color:var(--muted); font-size:13px; text-decoration:none; margin-left:16px; }
+    .topbar-nav a:hover { color:#fff; }
+    .btn-logout { background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); color:var(--ice); font-family:'DM Mono',monospace; font-size:11px; letter-spacing:.08em; text-transform:uppercase; padding:6px 14px; border-radius:3px; cursor:pointer; }
+    .nav-tabs { background:var(--ink); padding:0 28px; display:flex; border-bottom:1px solid rgba(255,255,255,.06); }
+    .nav-tab { padding:12px 20px; color:var(--muted); font-size:13px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; transition:color .15s,border-color .15s; background:none; border-top:none; border-left:none; border-right:none; }
+    .nav-tab.active { color:#fff; border-bottom-color:var(--sky); }
+    .nav-tab:hover:not(.active) { color:var(--ice); }
+    .content { max-width:1100px; margin:0 auto; padding:28px; }
+    .panel { display:none; } .panel.active { display:block; }
+    .card { background:#fff; border:1px solid var(--border); border-radius:6px; padding:24px; margin-bottom:20px; }
+    .card h3 { font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--steel); margin-bottom:16px; font-family:'DM Mono',monospace; }
+    .stats-row { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:20px; }
+    .stat-card { flex:1; min-width:140px; background:#fff; border:1px solid var(--border); border-radius:6px; padding:18px 20px; }
+    .stat-value { font-size:28px; font-weight:800; color:var(--navy); font-family:'DM Mono',monospace; }
+    .stat-label { font-size:12px; color:var(--muted); margin-top:4px; text-transform:uppercase; letter-spacing:.08em; }
+    .toolbar { display:flex; gap:10px; align-items:center; margin-bottom:16px; flex-wrap:wrap; }
+    .toolbar input[type=text] { flex:1; min-width:200px; padding:9px 14px; border:1px solid var(--border); border-radius:4px; font-family:'DM Mono',monospace; font-size:13px; outline:none; color:var(--navy); }
+    .toolbar input[type=text]:focus { border-color:var(--sky); }
+    .btn { padding:9px 18px; border-radius:4px; font-family:'Syne',sans-serif; font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; cursor:pointer; border:none; transition:background .15s; }
+    .btn-add  { background:var(--green); color:#fff; } .btn-add:hover { background:#23865e; }
+    .btn-edit { background:var(--sky); color:#fff; padding:5px 12px; font-size:11px; } .btn-edit:hover { background:#3a7fc8; }
+    .btn-del  { background:#fde8e6; color:var(--red); padding:5px 12px; font-size:11px; border:1px solid #f5c6c2; }
+    .btn-gray { background:#e2eaf3; color:var(--ink); } .btn-gray:hover { background:#d2dce9; }
+    .btn-save { background:var(--navy); color:#fff; } .btn-save:hover { background:var(--ink); }
+    .btn-upload { background:var(--accent); color:var(--navy); } .btn-upload:hover { background:#d4921c; }
+    .btn:disabled { opacity:.4; cursor:not-allowed; }
+    .data-table { width:100%; border-collapse:collapse; font-size:13px; }
+    .data-table th { background:var(--navy); color:var(--ice); padding:9px 12px; font-family:'DM Mono',monospace; font-size:10px; letter-spacing:.1em; text-transform:uppercase; text-align:left; }
+    .data-table td { padding:10px 12px; border-bottom:1px solid var(--border); vertical-align:middle; }
+    .data-table tr:last-child td { border-bottom:none; }
+    .data-table tr:hover td { background:var(--fog); }
+    .data-table tr:nth-child(even) td { background:var(--white); }
+    .data-table tr:nth-child(even):hover td { background:var(--fog); }
+    .mono { font-family:'DM Mono',monospace; }
+    .td-actions { display:flex; gap:6px; }
+    .pagination { display:flex; gap:8px; align-items:center; margin-top:16px; justify-content:flex-end; font-size:13px; color:var(--muted); }
+    .page-btn { padding:6px 12px; border:1px solid var(--border); border-radius:3px; background:#fff; cursor:pointer; font-family:'DM Mono',monospace; font-size:12px; }
+    .page-btn:hover:not(:disabled) { background:var(--fog); }
+    .page-btn:disabled { opacity:.4; cursor:not-allowed; }
+    .page-btn.current { background:var(--navy); color:#fff; border-color:var(--navy); }
+
+    /* COLUMN MANAGER */
+    .col-list-header { display:grid; grid-template-columns:32px 150px 130px 110px 70px 70px 100px; gap:8px; padding:8px 14px; background:var(--navy); color:var(--ice); font-family:'DM Mono',monospace; font-size:10px; letter-spacing:.1em; text-transform:uppercase; border-radius:4px 4px 0 0; }
+    .col-list-wrap { border:1px solid var(--border); border-top:none; border-radius:0 0 4px 4px; overflow:hidden; }
+    .col-list { list-style:none; }
+    .col-row { display:grid; grid-template-columns:32px 150px 130px 110px 70px 70px 100px; gap:8px; align-items:center; padding:10px 14px; border-bottom:1px solid var(--border); background:#fff; cursor:default; transition:background .1s; }
+    .col-row:last-child { border-bottom:none; }
+    .col-row:hover { background:var(--fog); }
+    .col-row.dragging { opacity:.35; }
+    .col-row.drag-over { border-top:2px solid var(--sky); }
+    .drag-handle { color:var(--muted); font-size:20px; cursor:grab; user-select:none; text-align:center; }
+    .col-row input[type=text] { padding:6px 9px; border:1px solid var(--border); border-radius:3px; font-family:'DM Mono',monospace; font-size:12px; width:100%; outline:none; color:var(--navy); }
+    .col-row input[type=text]:focus { border-color:var(--sky); }
+    .col-row select { padding:6px 6px; border:1px solid var(--border); border-radius:3px; font-family:'DM Mono',monospace; font-size:12px; width:100%; outline:none; color:var(--navy); }
+    .col-key-label { font-family:'DM Mono',monospace; font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .toggle-wrap { display:flex; justify-content:center; }
+    .toggle-switch { position:relative; width:36px; height:20px; display:inline-block; }
+    .toggle-switch input { opacity:0; width:0; height:0; }
+    .toggle-slider { position:absolute; inset:0; background:#c0d4e8; border-radius:20px; cursor:pointer; transition:background .2s; }
+    .toggle-slider:before { content:''; position:absolute; width:14px; height:14px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:transform .2s; }
+    .toggle-switch input:checked + .toggle-slider { background:var(--sky); }
+    .toggle-switch input:checked + .toggle-slider:before { transform:translateX(16px); }
+    .toggle-switch input:disabled + .toggle-slider { opacity:.5; cursor:not-allowed; }
+    .protected-tag { font-family:'DM Mono',monospace; font-size:10px; color:var(--muted); padding:3px 7px; background:var(--fog); border-radius:2px; border:1px solid var(--border); }
+    .add-col-row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; padding:16px; background:var(--fog); border:1px solid var(--border); border-radius:4px; margin-top:16px; }
+    .add-col-row .fg { display:flex; flex-direction:column; gap:5px; }
+    .add-col-row label { font-family:'DM Mono',monospace; font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--steel); }
+    .add-col-row input, .add-col-row select { padding:8px 10px; border:1px solid var(--border); border-radius:3px; font-family:'DM Mono',monospace; font-size:13px; outline:none; color:var(--navy); }
+    .add-col-row input:focus, .add-col-row select:focus { border-color:var(--sky); }
+
+    /* THEME EDITOR */
+    .preset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:4px}
+    .preset-card{border:2px solid var(--border);border-radius:8px;overflow:hidden;cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s}
+    .preset-card:hover{border-color:var(--sky);box-shadow:0 4px 12px rgba(0,0,0,0.1)}
+    .preset-card.active{border-color:var(--sky);box-shadow:0 0 0 3px rgba(74,144,217,0.2)}
+    .preset-swatch{height:52px;display:flex}
+    .preset-swatch span{flex:1}
+    .preset-label{padding:8px 10px;font-size:12px;font-weight:600;background:#fff;text-align:center;font-family:'DM Mono',monospace}
+    .color-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+    .color-field{display:flex;flex-direction:column;gap:6px}
+    .color-field label{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--steel)}
+    .color-row{display:flex;align-items:center;gap:8px}
+    .color-row input[type=color]{width:40px;height:32px;border:1px solid var(--border);border-radius:4px;cursor:pointer;padding:2px;background:#fff}
+    .color-row input[type=text]{flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:4px;font-family:'DM Mono',monospace;font-size:12px;outline:none;transition:border-color 0.15s}
+    .color-row input[type=text]:focus{border-color:var(--sky)}
+    .font-select{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:4px;font-size:13px;outline:none;transition:border-color 0.15s}
+    .font-select:focus{border-color:var(--sky)}
+    .theme-preview{border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-top:4px}
+    .tp-header{padding:14px 18px;display:flex;align-items:center;gap:12px}
+    .tp-badge{font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;padding:3px 8px;border-radius:2px}
+    .tp-title{font-size:16px;font-weight:800;letter-spacing:-0.01em}
+    .tp-title span{} 
+    .tp-nav{height:6px}
+    .tp-rows{padding:8px 0}
+    .tp-thead{display:grid;grid-template-columns:1fr 80px 1fr 70px;padding:6px 12px;font-size:9px;letter-spacing:0.1em;text-transform:uppercase}
+    .tp-row{display:grid;grid-template-columns:1fr 80px 1fr 70px;padding:7px 12px;font-size:11px;border-bottom:1px solid}
+    .tp-row:last-child{border-bottom:none}
+    .tp-status{font-size:9px;font-weight:700}
+
+    /* UPLOAD */
+    .upload-zone { border:2px dashed var(--border); border-radius:6px; padding:40px; text-align:center; cursor:pointer; transition:border-color .2s,background .2s; }
+    .upload-zone:hover,.upload-zone.drag { border-color:var(--sky); background:var(--fog); }
+    .up-icon { font-size:40px; display:block; margin-bottom:12px; }
+    #fileInput { display:none; }
+    .upload-mode-row { display:flex; gap:16px; margin:16px 0; }
+    .mode-opt { flex:1; padding:14px; border:2px solid var(--border); border-radius:4px; cursor:pointer; transition:border-color .15s,background .15s; }
+    .mode-opt.selected { border-color:var(--sky); background:var(--fog); }
+    .mode-opt h4 { font-size:13px; font-weight:700; margin-bottom:4px; }
+    .mode-opt p  { font-size:12px; color:var(--muted); }
+    .upload-status { padding:16px; border-radius:4px; font-size:14px; margin-top:16px; display:none; }
+    .upload-status.success { background:#e8f8f0; border:1px solid #a8e0c0; color:#1a6640; }
+    .upload-status.error   { background:#fde8e6; border:1px solid #f5c6c2; color:var(--red); }
+
+    /* MODAL */
+    .modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:100; align-items:center; justify-content:center; }
+    .modal-bg.open { display:flex; }
+    .modal { background:#fff; border-radius:8px; border-top:3px solid var(--sky); padding:32px; width:100%; max-width:500px; box-shadow:0 24px 64px rgba(0,0,0,.2); max-height:90vh; overflow-y:auto; }
+    .modal h3 { font-size:16px; font-weight:700; margin-bottom:20px; }
+    .modal-field { margin-bottom:14px; }
+    .modal-field label { display:block; font-family:'DM Mono',monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--steel); margin-bottom:5px; }
+    .modal-field input,.modal-field select,.modal-field textarea { width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:4px; font-family:'DM Mono',monospace; font-size:13px; outline:none; color:var(--navy); }
+    .modal-field input:focus,.modal-field select:focus { border-color:var(--sky); }
+    .modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:20px; }
+    .modal-error { color:var(--red); font-size:12px; margin-top:10px; display:none; }
+
+    /* AUDIT */
+    .audit-header { display:grid; grid-template-columns:150px 90px 1fr 80px; padding:8px 14px; background:var(--navy); color:var(--ice); font-family:'DM Mono',monospace; font-size:10px; letter-spacing:.1em; text-transform:uppercase; border-radius:4px 4px 0 0; }
+    .audit-row { display:grid; grid-template-columns:150px 90px 1fr 80px; padding:10px 14px; border-bottom:1px solid var(--border); font-size:13px; align-items:start; }
+    .audit-row:last-child { border-bottom:none; }
+    .audit-row:hover { background:var(--fog); }
+    .audit-time { font-family:'DM Mono',monospace; font-size:11px; color:var(--muted); }
+    .audit-action { font-family:'DM Mono',monospace; font-size:11px; font-weight:500; }
+    .audit-action.ADD{color:var(--green)} .audit-action.EDIT{color:var(--sky)} .audit-action.DELETE{color:var(--red)} .audit-action.UPLOAD{color:var(--accent)} .audit-action.COLUMNS{color:#9b59b6} .audit-action.BRANDING{color:#e67e22} .audit-action.THEME{color:#1abc9c} .audit-action.LOGIN{color:var(--muted)}
+    #auditList { border:1px solid var(--border); border-top:none; border-radius:0 0 4px 4px; overflow:hidden; background:#fff; }
+    .toast { position:fixed; bottom:28px; right:28px; background:var(--navy); color:#fff; padding:12px 20px; border-radius:6px; font-size:13px; font-family:'DM Mono',monospace; box-shadow:0 8px 24px rgba(0,0,0,.3); z-index:200; opacity:0; transform:translateY(12px); transition:opacity .2s,transform .2s; pointer-events:none; }
+    .toast.show { opacity:1; transform:translateY(0); }
+    .toast.success { border-left:3px solid var(--green); }
+    .toast.error   { border-left:3px solid var(--red); }
+  </style>
+</head>
+<body>
+<div id="loginScreen">
+  <div class="login-card">
+    <h2>Staff Portal</h2>
+    <p>Road Name Index · Admin Access</p>
+    <label class="field-label">Username</label>
+    <input type="text" id="loginUser" class="field-input" placeholder="admin" autocomplete="username" />
+    <label class="field-label">Password</label>
+    <input type="password" id="loginPass" class="field-input" placeholder="••••••••" autocomplete="current-password" />
+    <button class="btn-primary" id="loginBtn">Sign In</button>
+    <div class="login-error" id="loginError">Invalid username or password.</div>
+  </div>
+</div>
+
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-brand">Road <span>Index</span></div>
+    <div class="topbar-badge">Admin</div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-nav"><a href="/" target="_blank">← Public Site</a></div>
+    <button class="btn-logout" id="logoutBtn">Sign Out</button>
+  </div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" data-panel="records">Records</button>
+    <button class="nav-tab" data-panel="columns">Columns</button>
+    <button class="nav-tab" data-panel="branding">Branding</button>
+    <button class="nav-tab" data-panel="theme">Theme</button>
+    <button class="nav-tab" data-panel="upload">Upload File</button>
+    <button class="nav-tab" data-panel="audit">Audit Log</button>
+  </div>
+  <div class="content">
+
+    <!-- RECORDS -->
+    <div class="panel active" id="panel-records">
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-value" id="statTotal">—</div><div class="stat-label">Total Roads</div></div>
+        <div class="stat-card"><div class="stat-value" id="statSubdiv">—</div><div class="stat-label">Subdivisions</div></div>
+        <div class="stat-card"><div class="stat-value" id="statUpdated">—</div><div class="stat-label">Last Updated</div></div>
+      </div>
+      <div class="card">
+        <div class="toolbar">
+          <input type="text" id="adminSearch" placeholder="Search road name or subdivision…" />
+          <button class="btn btn-add" id="addBtn">+ Add Road</button>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="data-table">
+            <thead id="recordsHead"></thead>
+            <tbody id="recordsBody"><tr><td colspan="10" style="padding:40px;text-align:center;color:var(--muted)">Loading…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="pagination" id="pagination"></div>
+      </div>
+    </div>
+
+    <!-- COLUMNS -->
+    <div class="panel" id="panel-columns">
+      <div class="card">
+        <h3>Manage Columns</h3>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6">
+          Drag rows to reorder · Toggle show/hide · Edit labels · Changes apply to the public site after clicking <strong>Save</strong>.
+          The <strong>road_name</strong> column is required and cannot be deleted.
+        </p>
+        <div class="col-list-header">
+          <span></span><span>Label</span><span>DB Field</span><span>Width</span><span>Visible</span><span>Search</span><span>Actions</span>
+        </div>
+        <div class="col-list-wrap"><ul class="col-list" id="colList"></ul></div>
+        <div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end">
+          <button class="btn btn-gray" id="resetColsBtn">Reset Defaults</button>
+          <button class="btn btn-save" id="saveColsBtn">💾 Save Layout</button>
+        </div>
+
+        <div class="add-col-row">
+          <div class="fg"><label>Column Label</label><input type="text" id="newColLabel" placeholder="e.g. District" style="width:150px" /></div>
+          <div class="fg"><label>Field Key (no spaces)</label><input type="text" id="newColKey" placeholder="e.g. district" style="width:140px" /></div>
+          <div class="fg"><label>Width</label>
+            <select id="newColWidth" style="width:120px">
+              <option value="flex">Auto (flex)</option>
+              <option value="90px">Narrow 90px</option>
+              <option value="120px">Medium 120px</option>
+              <option value="200px">Wide 200px</option>
+            </select>
+          </div>
+          <button class="btn btn-add" id="addColBtn" style="margin-bottom:1px">+ Add Column</button>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5">
+          Adding a column creates a new field in the database. Populate it by editing records manually or uploading a CSV/Excel with that column name.
+        </p>
+      </div>
+    </div>
+
+    <!-- BRANDING -->
+    <div class="panel" id="panel-branding">
+
+      <!-- Logo -->
+      <div class="card">
+        <h3>Logo</h3>
+        <div style="display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap">
+          <div id="logoPreviewWrap" style="width:160px;height:80px;border:2px dashed var(--border);border-radius:6px;display:flex;align-items:center;justify-content:center;background:var(--navy);overflow:hidden;flex-shrink:0">
+            <img id="logoPreview" src="" alt="" style="max-width:140px;max-height:68px;object-fit:contain;display:none" />
+            <span id="logoPlaceholder" style="font-size:12px;color:var(--muted);font-family:'DM Mono',monospace">No logo</span>
+          </div>
+          <div style="flex:1;min-width:200px">
+            <p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.6">Upload a PNG, JPG, SVG, or GIF. Recommended height: 60–80px. The logo appears in the top-left of the public site header.</p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <label style="display:inline-block">
+                <input type="file" id="logoInput" accept=".png,.jpg,.jpeg,.gif,.svg,.webp" style="display:none" />
+                <span class="btn btn-upload" style="cursor:pointer">Upload Logo</span>
+              </label>
+              <button class="btn btn-del" id="removeLogoBtn" style="display:none">Remove Logo</button>
+            </div>
+            <div id="logoStatus" style="margin-top:10px;font-size:13px;display:none"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Header Text -->
+      <div class="card">
+        <h3>Header Text</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="modal-field">
+            <label>Badge Text <span style="font-weight:400;color:var(--muted)">(small tag, top-left)</span></label>
+            <input type="text" id="b_badge" placeholder="911 Addressing" />
+          </div>
+          <div class="modal-field">
+            <label>Page Title</label>
+            <input type="text" id="b_title" placeholder="Road Name Index" />
+          </div>
+        </div>
+        <div class="modal-field" style="margin-top:4px">
+          <label>Subtitle / Description</label>
+          <textarea id="b_subtitle" rows="3" placeholder="Search approved and reserved road names..."></textarea>
+        </div>
+      </div>
+
+      <!-- Instruction Cards -->
+      <div class="card">
+        <h3>Instruction Cards</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div>
+            <p style="font-size:11px;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:0.08em;color:var(--steel);margin-bottom:10px">Card 1 (Left)</p>
+            <div class="modal-field">
+              <label>Heading</label>
+              <input type="text" id="b_instr1_title" placeholder="How to check a name" />
+            </div>
+            <div class="modal-field">
+              <label>Body Text</label>
+              <textarea id="b_instr1_body" rows="3" placeholder="Type only the road name..."></textarea>
+            </div>
+          </div>
+          <div>
+            <p style="font-size:11px;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:0.08em;color:var(--steel);margin-bottom:10px">Card 2 (Right)</p>
+            <div class="modal-field">
+              <label>Heading</label>
+              <input type="text" id="b_instr2_title" placeholder="Name not found?" />
+            </div>
+            <div class="modal-field">
+              <label>Body Text <span style="font-weight:400;color:var(--muted)">(use {email} for the contact link)</span></label>
+              <textarea id="b_instr2_body" rows="3" placeholder="Email {email} to request approval..."></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="modal-field" style="margin-top:8px">
+          <label>Contact Email Address</label>
+          <input type="text" id="b_contact_email" placeholder="911Addressing@yourcounty.us" style="max-width:360px" />
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;align-items:center">
+        <button class="btn btn-add" id="saveBrandingBtn">Save Branding</button>
+        <span id="brandingSaveStatus" style="font-size:13px;color:var(--green);display:none">&#10003; Saved!</span>
+      </div>
+    </div>
+
+    <!-- THEME -->
+    <div class="panel" id="panel-theme">
+
+      <!-- Preset Themes -->
+      <div class="card">
+        <h3>Preset Themes</h3>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Click a preset to load it, then save — or customize individual colors below.</p>
+        <div class="preset-grid" id="presetGrid"></div>
+      </div>
+
+      <!-- Live Preview -->
+      <div class="card">
+        <h3>Live Preview</h3>
+        <div class="theme-preview" id="themePreview">
+          <div class="tp-header" id="tp-header">
+            <div class="tp-badge" id="tp-badge">911 Addressing</div>
+            <div class="tp-title" id="tp-title">Road Name <span id="tp-title-span">Index</span></div>
+          </div>
+          <div class="tp-nav" id="tp-nav"></div>
+          <div class="tp-rows">
+            <div class="tp-thead" id="tp-thead"><span>Road Name</span><span>Type</span><span>Subdivision</span><span>Status</span></div>
+            <div class="tp-row" id="tp-row1"><span style="font-family:'DM Mono',monospace;font-weight:500">CEDAR RIDGE</span><span style="opacity:0.6">DR</span><span>Cedar Oaks</span><span class="tp-status" id="tp-s1">Active</span></div>
+            <div class="tp-row" id="tp-row2"><span style="font-family:'DM Mono',monospace;font-weight:500">OAK HOLLOW</span><span style="opacity:0.6">LN</span><span>—</span><span class="tp-status" id="tp-s2">Reserved</span></div>
+            <div class="tp-row" id="tp-row3"><span style="font-family:'DM Mono',monospace;font-weight:500">PINE VALLEY</span><span style="opacity:0.6">CT</span><span>Pine Estates</span><span class="tp-status" id="tp-s3">Active</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Color Controls -->
+      <div class="card">
+        <h3>Header &amp; Navigation</h3>
+        <div class="color-grid">
+          <div class="color-field"><label>Header Background</label><div class="color-row"><input type="color" id="t_header_bg" /><input type="text" id="t_header_bg_hex" /></div></div>
+          <div class="color-field"><label>Navigation Bar</label><div class="color-row"><input type="color" id="t_nav_bg" /><input type="text" id="t_nav_bg_hex" /></div></div>
+          <div class="color-field"><label>Accent / Badge Color</label><div class="color-row"><input type="color" id="t_accent" /><input type="text" id="t_accent_hex" /></div></div>
+          <div class="color-field"><label>Link / Highlight Color</label><div class="color-row"><input type="color" id="t_sky" /><input type="text" id="t_sky_hex" /></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Page &amp; Table</h3>
+        <div class="color-grid">
+          <div class="color-field"><label>Page Background</label><div class="color-row"><input type="color" id="t_page_bg" /><input type="text" id="t_page_bg_hex" /></div></div>
+          <div class="color-field"><label>Row Background</label><div class="color-row"><input type="color" id="t_row_bg" /><input type="text" id="t_row_bg_hex" /></div></div>
+          <div class="color-field"><label>Alternating Row</label><div class="color-row"><input type="color" id="t_row_alt_bg" /><input type="text" id="t_row_alt_bg_hex" /></div></div>
+          <div class="color-field"><label>Row Hover</label><div class="color-row"><input type="color" id="t_row_hover_bg" /><input type="text" id="t_row_hover_bg_hex" /></div></div>
+          <div class="color-field"><label>Table Header Background</label><div class="color-row"><input type="color" id="t_table_head_bg" /><input type="text" id="t_table_head_bg_hex" /></div></div>
+          <div class="color-field"><label>Table Header Text</label><div class="color-row"><input type="color" id="t_table_head_text" /><input type="text" id="t_table_head_text_hex" /></div></div>
+          <div class="color-field"><label>Border Color</label><div class="color-row"><input type="color" id="t_border" /><input type="text" id="t_border_hex" /></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Text &amp; Status</h3>
+        <div class="color-grid">
+          <div class="color-field"><label>Body Text</label><div class="color-row"><input type="color" id="t_body_text" /><input type="text" id="t_body_text_hex" /></div></div>
+          <div class="color-field"><label>Muted Text</label><div class="color-row"><input type="color" id="t_muted_text" /><input type="text" id="t_muted_text_hex" /></div></div>
+          <div class="color-field"><label>Status: Active</label><div class="color-row"><input type="color" id="t_status_active" /><input type="text" id="t_status_active_hex" /></div></div>
+          <div class="color-field"><label>Status: Reserved</label><div class="color-row"><input type="color" id="t_status_reserved" /><input type="text" id="t_status_reserved_hex" /></div></div>
+          <div class="color-field"><label>Status: Inactive</label><div class="color-row"><input type="color" id="t_status_inactive" /><input type="text" id="t_status_inactive_hex" /></div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Fonts</h3>
+        <div class="color-grid">
+          <div class="color-field">
+            <label>Heading Font</label>
+            <select class="font-select" id="t_font_heading">
+              <option value="Syne">Syne (Default)</option>
+              <option value="Inter">Inter</option>
+              <option value="Roboto">Roboto</option>
+              <option value="Open Sans">Open Sans</option>
+              <option value="Lato">Lato</option>
+              <option value="Montserrat">Montserrat</option>
+              <option value="Raleway">Raleway</option>
+              <option value="Oswald">Oswald</option>
+              <option value="Merriweather">Merriweather</option>
+              <option value="Georgia">Georgia</option>
+              <option value="Arial">Arial</option>
+            </select>
+          </div>
+          <div class="color-field">
+            <label>Monospace Font</label>
+            <select class="font-select" id="t_font_mono">
+              <option value="DM Mono">DM Mono (Default)</option>
+              <option value="Courier New">Courier New</option>
+              <option value="Roboto Mono">Roboto Mono</option>
+              <option value="Source Code Pro">Source Code Pro</option>
+              <option value="Fira Mono">Fira Mono</option>
+              <option value="IBM Plex Mono">IBM Plex Mono</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-add" id="saveThemeBtn">Save Theme</button>
+        <button class="btn btn-gray" id="resetThemeBtn">Reset to Default</button>
+        <span id="themeSaveStatus" style="font-size:13px;color:var(--green);display:none">&#10003; Saved! Refresh the public site to see changes.</span>
+      </div>
+    </div>
+
+    <!-- UPLOAD -->
+    <div class="panel" id="panel-upload">
+      <div class="card">
+        <h3>Upload CSV or Excel File</h3>
+        <div class="upload-zone" id="uploadZone">
+          <span class="up-icon">📂</span>
+          <p><strong>Click to choose a file</strong> or drag and drop here</p>
+          <p style="margin-top:6px;font-size:12px">Accepts .csv, .xlsx, .xls — up to 20 MB</p>
+          <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" />
+        </div>
+        <div id="selectedFile" style="display:none;margin-top:12px;padding:10px 14px;background:var(--fog);border:1px solid var(--border);border-radius:4px;font-family:'DM Mono',monospace;font-size:13px;color:var(--navy);align-items:center;gap:10px">
+          <span id="fileName"></span>
+          <button class="btn btn-gray" id="clearFile" style="padding:4px 10px;font-size:11px;margin-left:auto">✕ Remove</button>
+        </div>
+        <div style="margin-top:20px">
+          <label style="font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--steel);display:block;margin-bottom:10px">Import Mode</label>
+          <div class="upload-mode-row">
+            <div class="mode-opt selected" data-mode="append" id="modeAppend"><h4>Append</h4><p>Add new roads. Skip duplicates already in the database.</p></div>
+            <div class="mode-opt" data-mode="replace" id="modeReplace"><h4>Replace All</h4><p>Delete everything and reload from this file.</p></div>
+          </div>
+        </div>
+        <div style="margin-top:16px"><button class="btn btn-upload" id="uploadBtn" disabled>Upload &amp; Import</button></div>
+        <div class="upload-status" id="uploadStatus"></div>
+      </div>
+    </div>
+
+    <!-- AUDIT -->
+    <div class="panel" id="panel-audit">
+      <div class="card" style="padding:0;overflow:hidden">
+        <div class="audit-header"><span>Timestamp</span><span>Action</span><span>Details</span><span>User</span></div>
+        <div id="auditList"><div style="padding:40px;text-align:center;color:var(--muted);font-size:13px">Loading…</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <h3 id="modalTitle">Add Road</h3>
+    <input type="hidden" id="editId" />
+    <div id="modalFields"></div>
+    <div class="modal-error" id="modalError"></div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" id="modalCancel">Cancel</button>
+      <button class="btn btn-add" id="modalSave">Save</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+  let TOKEN = sessionStorage.getItem('adminToken') || '';
+  let columns = [];
+  let currentPage = 1;
+  let uploadMode = 'append';
+  let selectedFile = null;
+  let dragSrcIndex = null;
+
+  const H = (isForm) => { const h={'x-admin-token':TOKEN}; if(!isForm) h['Content-Type']='application/json'; return h; };
+  const esc = s => (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const fmtDate = d => d ? new Date(d+'Z').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—';
+  const fmtDT   = d => d ? new Date(d+'Z').toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}) : '—';
+  const PROTECTED = ['road_name'];
+  const SKIP_MODAL = ['id','created_at','updated_at'];
+
+  if (TOKEN) checkAuth();
+
+  document.getElementById('loginBtn').addEventListener('click', login);
+  document.getElementById('loginPass').addEventListener('keydown', e => { if(e.key==='Enter') login(); });
+
+  async function login() {
+    const u=document.getElementById('loginUser').value.trim(), p=document.getElementById('loginPass').value;
+    const errEl=document.getElementById('loginError'); errEl.style.display='none';
+    try {
+      const res=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+      const data=await res.json();
+      if(!res.ok){errEl.style.display='block';return;}
+      TOKEN=data.token; sessionStorage.setItem('adminToken',TOKEN); showApp();
+    } catch{errEl.style.display='block';}
+  }
+
+  async function checkAuth() {
+    const res=await fetch('/api/admin/roads?limit=1',{headers:H()});
+    if(res.ok) showApp(); else {TOKEN='';sessionStorage.removeItem('adminToken');}
+  }
+
+  function showApp() {
+    document.getElementById('loginScreen').style.display='none';
+    document.getElementById('app').style.display='block';
+    loadColumns().then(()=>{ loadStats(); loadRecords(); });
+  }
+
+  document.getElementById('logoutBtn').addEventListener('click', async ()=>{
+    await fetch('/api/admin/logout',{method:'POST',headers:H()});
+    sessionStorage.removeItem('adminToken'); location.reload();
+  });
+
+  // TABS
+  document.querySelectorAll('.nav-tab').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('.nav-tab').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('panel-'+btn.dataset.panel).classList.add('active');
+      if(btn.dataset.panel==='audit') loadAudit();
+      if(btn.dataset.panel==='columns') renderColManager();
+      if(btn.dataset.panel==='branding') loadBranding();
+      if(btn.dataset.panel==='theme') loadTheme();
+    });
+  });
+
+  // ── COLUMNS ──────────────────────────────────────────────────────────
+  async function loadColumns() {
+    const res=await fetch('/api/admin/columns',{headers:H()});
+    columns=await res.json();
+  }
+
+  function renderColManager() {
+    const list=document.getElementById('colList');
+    list.innerHTML=columns.map((col,i)=>`
+      <li class="col-row" draggable="true" data-i="${i}">
+        <span class="drag-handle" title="Drag to reorder">⠿</span>
+        <input type="text" value="${esc(col.label)}" data-f="label" data-i="${i}" />
+        <span class="col-key-label" title="${esc(col.key)}">${esc(col.key)}</span>
+        <select data-f="width" data-i="${i}">
+          <option value="flex"  ${col.width==='flex'?'selected':''}>Auto</option>
+          <option value="90px"  ${col.width==='90px'?'selected':''}>Narrow</option>
+          <option value="120px" ${col.width==='120px'?'selected':''}>Medium</option>
+          <option value="200px" ${col.width==='200px'?'selected':''}>Wide</option>
+        </select>
+        <div class="toggle-wrap"><label class="toggle-switch">
+          <input type="checkbox" ${col.visible!==false?'checked':''} data-f="visible" data-i="${i}" ${PROTECTED.includes(col.key)?'disabled':''}/>
+          <span class="toggle-slider"></span>
+        </label></div>
+        <div class="toggle-wrap"><label class="toggle-switch">
+          <input type="checkbox" ${col.searchable?'checked':''} data-f="searchable" data-i="${i}"/>
+          <span class="toggle-slider"></span>
+        </label></div>
+        <div>${PROTECTED.includes(col.key)
+          ? `<span class="protected-tag">required</span>`
+          : `<button class="btn btn-del" style="font-size:11px;padding:5px 10px" onclick="deleteCol('${esc(col.key)}','${esc(col.label)}')">Remove</button>`
+        }</div>
+      </li>`).join('');
+
+    list.querySelectorAll('[data-f]').forEach(el=>{
+      el.addEventListener('change',()=>{
+        const i=parseInt(el.dataset.i), f=el.dataset.f;
+        columns[i][f] = (f==='visible'||f==='searchable') ? el.checked : el.value;
+      });
+    });
+
+    // Drag reorder
+    list.querySelectorAll('.col-row').forEach(row=>{
+      row.addEventListener('dragstart',e=>{ dragSrcIndex=parseInt(row.dataset.i); row.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; });
+      row.addEventListener('dragend',()=>{ row.classList.remove('dragging'); list.querySelectorAll('.col-row').forEach(r=>r.classList.remove('drag-over')); });
+      row.addEventListener('dragover',e=>{ e.preventDefault(); row.classList.add('drag-over'); });
+      row.addEventListener('dragleave',()=>row.classList.remove('drag-over'));
+      row.addEventListener('drop',e=>{
+        e.preventDefault(); row.classList.remove('drag-over');
+        const to=parseInt(row.dataset.i);
+        if(dragSrcIndex===to) return;
+        const moved=columns.splice(dragSrcIndex,1)[0];
+        columns.splice(to,0,moved);
+        renderColManager();
+      });
+    });
+  }
+
+  document.getElementById('saveColsBtn').addEventListener('click', async ()=>{
+    const res=await fetch('/api/admin/columns',{method:'PUT',headers:H(),body:JSON.stringify(columns)});
+    if(res.ok){toast('Column layout saved!','success'); renderTableHeader();}
+    else{const d=await res.json();toast(d.error||'Save failed','error');}
+  });
+
+  document.getElementById('resetColsBtn').addEventListener('click', async ()=>{
+    if(!confirm('Reset to default columns?')) return;
+    // send null to trigger server default
+    await fetch('/api/admin/columns',{method:'PUT',headers:H(),body:'null'});
+    await loadColumns(); renderColManager(); renderTableHeader();
+    toast('Columns reset','success');
+  });
+
+  document.getElementById('addColBtn').addEventListener('click', async ()=>{
+    const label=document.getElementById('newColLabel').value.trim();
+    const key  =document.getElementById('newColKey').value.trim();
+    const width=document.getElementById('newColWidth').value;
+    if(!label||!key){toast('Label and key are required','error');return;}
+    const res =await fetch('/api/admin/columns',{method:'POST',headers:H(),body:JSON.stringify({key,label,width})});
+    const data=await res.json();
+    if(!res.ok){toast(data.error||'Failed','error');return;}
+    document.getElementById('newColLabel').value='';
+    document.getElementById('newColKey').value='';
+    await loadColumns(); renderColManager(); renderTableHeader();
+    toast(`Column "${label}" added`,'success');
+  });
+
+  async function deleteCol(key,label){
+    if(!confirm(`Remove "${label}" column from display?\n\nData is kept in the database — just hidden from the site.`)) return;
+    const res=await fetch(`/api/admin/columns/${key}`,{method:'DELETE',headers:H()});
+    if(res.ok){await loadColumns();renderColManager();renderTableHeader();toast(`"${label}" removed`,'success');}
+    else toast('Failed to remove','error');
+  }
+
+  // ── RECORDS ──────────────────────────────────────────────────────────
+  function renderTableHeader(){
+    const vis=columns.filter(c=>c.visible!==false);
+    document.getElementById('recordsHead').innerHTML=`<tr>${vis.map(c=>`<th>${esc(c.label)}</th>`).join('')}<th>Updated</th><th>Actions</th></tr>`;
+  }
+
+  let sTimer=null;
+  document.getElementById('adminSearch').addEventListener('input',()=>{clearTimeout(sTimer);sTimer=setTimeout(()=>{currentPage=1;loadRecords();},200);});
+
+  async function loadRecords(){
+    renderTableHeader();
+    const q=document.getElementById('adminSearch').value.trim();
+    const res=await fetch(`/api/admin/roads?q=${encodeURIComponent(q)}&page=${currentPage}&limit=50`,{headers:H()});
+    const data=await res.json();
+    const vis=columns.filter(c=>c.visible!==false);
+    const tbody=document.getElementById('recordsBody');
+    if(!data.results.length){tbody.innerHTML=`<tr><td colspan="${vis.length+2}" style="padding:40px;text-align:center;color:var(--muted)">No records found.</td></tr>`;return;}
+    tbody.innerHTML=data.results.map(r=>`
+      <tr>
+        ${vis.map(c=>`<td ${c.key==='road_name'?'class="mono"':''}>${esc(r[c.key]||'—')}</td>`).join('')}
+        <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)">${fmtDate(r.updated_at)}</td>
+        <td><div class="td-actions">
+          <button class="btn btn-edit" onclick="openEdit(${r.id})">Edit</button>
+          <button class="btn btn-del" onclick="delRecord(${r.id},'${esc(r.road_name)}')">Delete</button>
+        </div></td>
+      </tr>`).join('');
+    const pg=document.getElementById('pagination');
+    if(data.pages<=1){pg.innerHTML='';return;}
+    let h=`<span>${data.total.toLocaleString()} total</span>`;
+    h+=`<button class="page-btn" onclick="goPage(${currentPage-1})" ${currentPage===1?'disabled':''}>‹</button>`;
+    for(let i=Math.max(1,currentPage-2);i<=Math.min(data.pages,currentPage+2);i++)
+      h+=`<button class="page-btn ${i===currentPage?'current':''}" onclick="goPage(${i})">${i}</button>`;
+    h+=`<button class="page-btn" onclick="goPage(${currentPage+1})" ${currentPage===data.pages?'disabled':''}>›</button>`;
+    pg.innerHTML=h;
+  }
+  function goPage(p){currentPage=p;loadRecords();}
+
+  // ── MODAL ─────────────────────────────────────────────────────────────
+  document.getElementById('addBtn').addEventListener('click',()=>openModal());
+  document.getElementById('modalCancel').addEventListener('click',closeModal);
+  document.getElementById('modalBg').addEventListener('click',e=>{if(e.target===document.getElementById('modalBg'))closeModal();});
+
+  function buildFields(data={}){
+    return columns.filter(c=>!SKIP_MODAL.includes(c.key)).map(c=>{
+      if(c.key==='status') return `<div class="modal-field"><label>${esc(c.label)}</label><select id="mf_${c.key}">${['Active','Reserved','Inactive'].map(o=>`<option ${(data[c.key]||'Active')===o?'selected':''}>${o}</option>`).join('')}</select></div>`;
+      return `<div class="modal-field"><label>${esc(c.label)}${c.key==='road_name'?' *':''}</label><input type="text" id="mf_${c.key}" value="${esc(data[c.key]||'')}" placeholder="${c.key==='road_name'?'Required':'Optional'}"/></div>`;
+    }).join('');
+  }
+
+  function openModal(id,data={}){
+    document.getElementById('modalTitle').textContent=id?'Edit Road':'Add Road';
+    document.getElementById('editId').value=id||'';
+    document.getElementById('modalFields').innerHTML=buildFields(data);
+    document.getElementById('modalError').style.display='none';
+    document.getElementById('modalBg').classList.add('open');
+    document.getElementById('mf_road_name')?.focus();
+  }
+  function closeModal(){document.getElementById('modalBg').classList.remove('open');}
+
+  async function openEdit(id){
+    const res=await fetch(`/api/admin/roads/${id}`,{headers:H()});
+    openModal(id,await res.json());
+  }
+
+  document.getElementById('modalSave').addEventListener('click', async ()=>{
+    const id=document.getElementById('editId').value;
+    const errEl=document.getElementById('modalError');
+    const payload={};
+    columns.filter(c=>!SKIP_MODAL.includes(c.key)).forEach(c=>{const el=document.getElementById(`mf_${c.key}`);if(el)payload[c.key]=el.value.trim();});
+    if(!payload.road_name){errEl.textContent='Road name is required.';errEl.style.display='block';return;}
+    const res=await fetch(id?`/api/admin/roads/${id}`:'/api/admin/roads',{method:id?'PUT':'POST',headers:H(),body:JSON.stringify(payload)});
+    const data=await res.json();
+    if(!res.ok){errEl.textContent=data.error;errEl.style.display='block';return;}
+    closeModal(); toast(id?'Road updated.':'Road added.','success'); loadRecords(); loadStats();
+  });
+
+  async function delRecord(id,name){
+    if(!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    const res=await fetch(`/api/admin/roads/${id}`,{method:'DELETE',headers:H()});
+    if(res.ok){toast('Deleted.','success');loadRecords();loadStats();}
+    else toast('Delete failed.','error');
+  }
+
+  // ── STATS ─────────────────────────────────────────────────────────────
+  async function loadStats(){
+    const d=await fetch('/api/stats').then(r=>r.json());
+    document.getElementById('statTotal').textContent  =d.total.toLocaleString();
+    document.getElementById('statSubdiv').textContent =d.subdivisions.toLocaleString();
+    document.getElementById('statUpdated').textContent=d.lastUpdated?new Date(d.lastUpdated+'Z').toLocaleDateString('en-US',{month:'short',day:'numeric'}):'—';
+  }
+
+  // ── UPLOAD ────────────────────────────────────────────────────────────
+  const uz=document.getElementById('uploadZone'), fi=document.getElementById('fileInput');
+  uz.addEventListener('click',()=>fi.click());
+  uz.addEventListener('dragover',e=>{e.preventDefault();uz.classList.add('drag');});
+  uz.addEventListener('dragleave',()=>uz.classList.remove('drag'));
+  uz.addEventListener('drop',e=>{e.preventDefault();uz.classList.remove('drag');handleFile(e.dataTransfer.files[0]);});
+  fi.addEventListener('change',()=>handleFile(fi.files[0]));
+  document.getElementById('clearFile').addEventListener('click',clearUpload);
+
+  function handleFile(f){if(!f)return;selectedFile=f;document.getElementById('fileName').textContent=`📄 ${f.name}  (${(f.size/1024).toFixed(1)} KB)`;document.getElementById('selectedFile').style.display='flex';document.getElementById('uploadBtn').disabled=false;document.getElementById('uploadStatus').style.display='none';}
+  function clearUpload(){selectedFile=null;fi.value='';document.getElementById('selectedFile').style.display='none';document.getElementById('uploadBtn').disabled=true;document.getElementById('uploadStatus').style.display='none';}
+
+  document.querySelectorAll('.mode-opt').forEach(el=>el.addEventListener('click',()=>{document.querySelectorAll('.mode-opt').forEach(m=>m.classList.remove('selected'));el.classList.add('selected');uploadMode=el.dataset.mode;}));
+
+  document.getElementById('uploadBtn').addEventListener('click', async ()=>{
+    if(!selectedFile) return;
+    if(uploadMode==='replace'&&!confirm('Replace ALL existing records?')) return;
+    const btn=document.getElementById('uploadBtn'),st=document.getElementById('uploadStatus');
+    btn.disabled=true;btn.textContent='Uploading…';st.style.display='none';
+    const fd=new FormData();fd.append('file',selectedFile);fd.append('mode',uploadMode);
+    try{
+      const res=await fetch('/api/admin/upload',{method:'POST',headers:{'x-admin-token':TOKEN},body:fd});
+      const data=await res.json();st.style.display='block';
+      if(res.ok){st.className='upload-status success';st.innerHTML=`✅ <strong>Done!</strong> Inserted ${data.inserted}, skipped ${data.skipped} duplicates.`;clearUpload();loadStats();loadRecords();}
+      else{st.className='upload-status error';st.textContent='❌ '+(data.error||'Upload failed');}
+    }catch(e){st.className='upload-status error';st.textContent='❌ '+e.message;st.style.display='block';}
+    btn.disabled=false;btn.textContent='Upload & Import';
+  });
+
+  // ── AUDIT ─────────────────────────────────────────────────────────────
+  async function loadAudit(){
+    const data=await fetch('/api/admin/audit',{headers:H()}).then(r=>r.json());
+    const el=document.getElementById('auditList');
+    if(!data.results.length){el.innerHTML='<div style="padding:30px;text-align:center;color:var(--muted);font-size:13px">No activity yet.</div>';return;}
+    el.innerHTML=data.results.map(r=>`
+      <div class="audit-row">
+        <span class="audit-time">${fmtDT(r.created_at)}</span>
+        <span class="audit-action ${r.action}">${r.action}</span>
+        <span>${esc(r.details||'')}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)">${esc(r.admin_user||'')}</span>
+      </div>`).join('');
+  }
+
+  function toast(msg,type='success'){const el=document.getElementById('toast');el.textContent=msg;el.className=`toast show ${type}`;setTimeout(()=>el.classList.remove('show'),3000);}
+
+  // ── BRANDING ──────────────────────────────────────────────────────────
+  async function loadBranding() {
+    const res = await fetch('/api/admin/branding', { headers: H() });
+    const b   = await res.json();
+    document.getElementById('b_badge').value         = b.badge         || '';
+    document.getElementById('b_title').value         = b.title         || '';
+    document.getElementById('b_subtitle').value      = b.subtitle      || '';
+    document.getElementById('b_instr1_title').value  = b.instr1_title  || '';
+    document.getElementById('b_instr1_body').value   = b.instr1_body   || '';
+    document.getElementById('b_instr2_title').value  = b.instr2_title  || '';
+    document.getElementById('b_instr2_body').value   = b.instr2_body   || '';
+    document.getElementById('b_contact_email').value = b.contact_email || '';
+    const preview     = document.getElementById('logoPreview');
+    const placeholder = document.getElementById('logoPlaceholder');
+    const removeBtn   = document.getElementById('removeLogoBtn');
+    if (b.logo_file) {
+      preview.src = b.logo_file + '?t=' + Date.now();
+      preview.style.display = 'block'; placeholder.style.display = 'none'; removeBtn.style.display = 'inline-block';
+    } else {
+      preview.style.display = 'none'; placeholder.style.display = 'block'; removeBtn.style.display = 'none';
+    }
+  }
+
+  document.getElementById('saveBrandingBtn').addEventListener('click', async () => {
+    const payload = {
+      badge:         document.getElementById('b_badge').value.trim(),
+      title:         document.getElementById('b_title').value.trim(),
+      subtitle:      document.getElementById('b_subtitle').value.trim(),
+      instr1_title:  document.getElementById('b_instr1_title').value.trim(),
+      instr1_body:   document.getElementById('b_instr1_body').value.trim(),
+      instr2_title:  document.getElementById('b_instr2_title').value.trim(),
+      instr2_body:   document.getElementById('b_instr2_body').value.trim(),
+      contact_email: document.getElementById('b_contact_email').value.trim(),
+    };
+    const res = await fetch('/api/admin/branding', { method: 'PUT', headers: H(), body: JSON.stringify(payload) });
+    const statusEl = document.getElementById('brandingSaveStatus');
+    if (res.ok) { statusEl.style.display='inline'; toast('Branding saved!','success'); setTimeout(()=>statusEl.style.display='none',3000); }
+    else toast('Save failed.','error');
+  });
+
+  document.getElementById('logoInput').addEventListener('change', async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const statusEl = document.getElementById('logoStatus');
+    statusEl.style.display='block'; statusEl.style.color='var(--muted)'; statusEl.textContent='Uploading...';
+    const fd = new FormData(); fd.append('logo', file);
+    const res  = await fetch('/api/admin/logo', { method:'POST', headers:{'x-admin-token':TOKEN}, body:fd });
+    const data = await res.json();
+    if (res.ok) { statusEl.style.color='var(--green)'; statusEl.textContent='Logo uploaded!'; loadBranding(); toast('Logo uploaded!','success'); }
+    else { statusEl.style.color='var(--red)'; statusEl.textContent=data.error||'Upload failed'; }
+    e.target.value='';
+  });
+
+  document.getElementById('removeLogoBtn').addEventListener('click', async () => {
+    if (!confirm('Remove the logo?')) return;
+    const res = await fetch('/api/admin/logo', { method:'DELETE', headers:H() });
+    if (res.ok) { loadBranding(); toast('Logo removed.','success'); }
+    else toast('Could not remove logo.','error');
+  });
+
+  // ── THEME ─────────────────────────────────────────────────────────────
+  const THEME_FIELDS = [
+    'header_bg','nav_bg','accent','sky','page_bg',
+    'row_bg','row_alt_bg','row_hover_bg','table_head_bg','table_head_text',
+    'border','body_text','muted_text','status_active','status_reserved','status_inactive'
+  ];
+
+  const PRESETS = [
+    { name:'Navy & Gold',    header_bg:'#0d1b2a', nav_bg:'#1a2e42', accent:'#e8a020', sky:'#4a90d9', page_bg:'#f5f9ff', row_bg:'#ffffff', row_alt_bg:'#f0f6ff', row_hover_bg:'#e0edf8', table_head_bg:'#0d1b2a', table_head_text:'#c8dff5', border:'#c0d4e8', body_text:'#0d1b2a', muted_text:'#5a7a9a', status_active:'#2a9d5c', status_reserved:'#e8a020', status_inactive:'#c0392b', font_heading:'Syne', font_mono:'DM Mono' },
+    { name:'Forest Green',   header_bg:'#1a3a2a', nav_bg:'#254d38', accent:'#f0c040', sky:'#4caf82', page_bg:'#f4faf6', row_bg:'#ffffff', row_alt_bg:'#f0f9f4', row_hover_bg:'#dff2e8', table_head_bg:'#1a3a2a', table_head_text:'#b8e0c8', border:'#b4d9c4', body_text:'#1a3a2a', muted_text:'#4a7a5a', status_active:'#2e7d52', status_reserved:'#e8a020', status_inactive:'#c0392b', font_heading:'Raleway', font_mono:'DM Mono' },
+    { name:'Crimson',        header_bg:'#6b0f1a', nav_bg:'#8b1a28', accent:'#f5c842', sky:'#e05c6a', page_bg:'#fff8f8', row_bg:'#ffffff', row_alt_bg:'#fff0f0', row_hover_bg:'#ffe0e0', table_head_bg:'#6b0f1a', table_head_text:'#f5c8c8', border:'#f0c0c0', body_text:'#2a0a0a', muted_text:'#8a5a5a', status_active:'#2a9d5c', status_reserved:'#e8a020', status_inactive:'#c0392b', font_heading:'Oswald', font_mono:'Roboto Mono' },
+    { name:'Slate & Sky',    header_bg:'#2d3748', nav_bg:'#3a4a5c', accent:'#63b3ed', sky:'#4299e1', page_bg:'#f7fafc', row_bg:'#ffffff', row_alt_bg:'#f0f5fa', row_hover_bg:'#e2ecf6', table_head_bg:'#2d3748', table_head_text:'#bee3f8', border:'#cbd5e0', body_text:'#1a202c', muted_text:'#718096', status_active:'#38a169', status_reserved:'#d69e2e', status_inactive:'#e53e3e', font_heading:'Inter', font_mono:'IBM Plex Mono' },
+    { name:'Sand & Brown',   header_bg:'#3e2723', nav_bg:'#4e342e', accent:'#ff8f00', sky:'#795548', page_bg:'#fdf8f0', row_bg:'#ffffff', row_alt_bg:'#fdf3e4', row_hover_bg:'#fae8cc', table_head_bg:'#3e2723', table_head_text:'#ffccbc', border:'#e0cdb8', body_text:'#2e1503', muted_text:'#8d6e63', status_active:'#388e3c', status_reserved:'#f57f17', status_inactive:'#c62828', font_heading:'Merriweather', font_mono:'Source Code Pro' },
+    { name:'Purple Dusk',    header_bg:'#2d1b69', nav_bg:'#3d2680', accent:'#f9a825', sky:'#7c4dff', page_bg:'#f8f4ff', row_bg:'#ffffff', row_alt_bg:'#f4f0ff', row_hover_bg:'#ebe0ff', table_head_bg:'#2d1b69', table_head_text:'#d4b8ff', border:'#cdb8f0', body_text:'#1a0a40', muted_text:'#7060a0', status_active:'#00897b', status_reserved:'#f9a825', status_inactive:'#e53935', font_heading:'Montserrat', font_mono:'Fira Mono' },
+    { name:'Clean White',    header_bg:'#1e1e1e', nav_bg:'#2d2d2d', accent:'#0078d4', sky:'#0078d4', page_bg:'#f5f5f5', row_bg:'#ffffff', row_alt_bg:'#f9f9f9', row_hover_bg:'#eef4fc', table_head_bg:'#1e1e1e', table_head_text:'#e0e0e0', border:'#e0e0e0', body_text:'#1e1e1e', muted_text:'#666666', status_active:'#107c10', status_reserved:'#ca5010', status_inactive:'#a80000', font_heading:'Open Sans', font_mono:'Courier New' },
+    { name:'High Contrast',  header_bg:'#000000', nav_bg:'#111111', accent:'#ffdd00', sky:'#00aaff', page_bg:'#ffffff', row_bg:'#ffffff', row_alt_bg:'#f0f0f0', row_hover_bg:'#e0e8ff', table_head_bg:'#000000', table_head_text:'#ffffff', border:'#888888', body_text:'#000000', muted_text:'#444444', status_active:'#006600', status_reserved:'#cc6600', status_inactive:'#cc0000', font_heading:'Arial', font_mono:'Courier New' },
+  ];
+
+  let currentTheme = {};
+
+  function buildPresetGrid() {
+    const grid = document.getElementById('presetGrid');
+    grid.innerHTML = PRESETS.map((p,i) => `
+      <div class="preset-card" data-preset="${i}" onclick="applyPreset(${i})">
+        <div class="preset-swatch">
+          <span style="background:${p.header_bg}"></span>
+          <span style="background:${p.nav_bg}"></span>
+          <span style="background:${p.accent}"></span>
+          <span style="background:${p.sky}"></span>
+          <span style="background:${p.row_bg}"></span>
+        </div>
+        <div class="preset-label">${p.name}</div>
+      </div>`).join('');
+  }
+
+  function applyPreset(i) {
+    const p = PRESETS[i];
+    currentTheme = { ...currentTheme, ...p, preset: p.name };
+    populateThemeFields(currentTheme);
+    updatePreview(currentTheme);
+    document.querySelectorAll('.preset-card').forEach((c,idx) => c.classList.toggle('active', idx===i));
+  }
+  window.applyPreset = applyPreset;
+
+  async function loadTheme() {
+    const res = await fetch('/api/admin/theme', { headers: H() });
+    currentTheme = await res.json();
+    populateThemeFields(currentTheme);
+    updatePreview(currentTheme);
+    buildPresetGrid();
+    // Highlight active preset
+    const activeIdx = PRESETS.findIndex(p => p.name === currentTheme.preset);
+    document.querySelectorAll('.preset-card').forEach((c,i) => c.classList.toggle('active', i===activeIdx));
+  }
+
+  function populateThemeFields(t) {
+    THEME_FIELDS.forEach(f => {
+      const colorEl = document.getElementById('t_'+f);
+      const hexEl   = document.getElementById('t_'+f+'_hex');
+      if (colorEl) colorEl.value = t[f] || '#000000';
+      if (hexEl)   hexEl.value   = t[f] || '#000000';
+    });
+    const fh = document.getElementById('t_font_heading');
+    const fm = document.getElementById('t_font_mono');
+    if (fh) fh.value = t.font_heading || 'Syne';
+    if (fm) fm.value = t.font_mono    || 'DM Mono';
+  }
+
+  function collectThemeFields() {
+    const t = { ...currentTheme };
+    THEME_FIELDS.forEach(f => {
+      const hexEl = document.getElementById('t_'+f+'_hex');
+      if (hexEl && /^#[0-9a-fA-F]{6}$/.test(hexEl.value)) t[f] = hexEl.value;
+    });
+    t.font_heading = document.getElementById('t_font_heading')?.value || 'Syne';
+    t.font_mono    = document.getElementById('t_font_mono')?.value    || 'DM Mono';
+    return t;
+  }
+
+  function updatePreview(t) {
+    const el = (id) => document.getElementById(id);
+    el('tp-header').style.background    = t.header_bg;
+    el('tp-badge').style.background     = t.accent;
+    el('tp-badge').style.color          = t.header_bg;
+    el('tp-title').style.color          = '#ffffff';
+    el('tp-title').style.fontFamily     = t.font_heading+',sans-serif';
+    el('tp-title-span').style.color     = t.sky;
+    el('tp-nav').style.background       = t.nav_bg;
+    el('tp-thead').style.background     = t.table_head_bg;
+    el('tp-thead').style.color          = t.table_head_text;
+    el('tp-thead').style.fontFamily     = t.font_mono+',monospace';
+    [['tp-row1',t.row_bg],['tp-row2',t.row_alt_bg],['tp-row3',t.row_bg]].forEach(([id,bg]) => {
+      el(id).style.background  = bg;
+      el(id).style.color       = t.body_text;
+      el(id).style.borderColor = t.border;
+    });
+    el('tp-s1').style.color = t.status_active;
+    el('tp-s2').style.color = t.status_reserved;
+    el('tp-s3').style.color = t.status_active;
+    document.getElementById('themePreview').style.borderColor = t.border;
+  }
+
+  // Wire color pickers — sync hex input when picker changes
+  THEME_FIELDS.forEach(f => {
+    const colorEl = document.getElementById('t_'+f);
+    const hexEl   = document.getElementById('t_'+f+'_hex');
+    if (!colorEl || !hexEl) return;
+    colorEl.addEventListener('input', () => {
+      hexEl.value = colorEl.value;
+      currentTheme[f] = colorEl.value;
+      updatePreview(collectThemeFields());
+    });
+    hexEl.addEventListener('input', () => {
+      if (/^#[0-9a-fA-F]{6}$/.test(hexEl.value)) {
+        colorEl.value = hexEl.value;
+        currentTheme[f] = hexEl.value;
+        updatePreview(collectThemeFields());
+      }
+    });
+  });
+
+  ['t_font_heading','t_font_mono'].forEach(id => {
+    document.getElementById(id)?.addEventListener('change', () => updatePreview(collectThemeFields()));
+  });
+
+  document.getElementById('saveThemeBtn').addEventListener('click', async () => {
+    const t   = collectThemeFields();
+    const res = await fetch('/api/admin/theme', { method:'PUT', headers:H(), body: JSON.stringify(t) });
+    const statusEl = document.getElementById('themeSaveStatus');
+    if (res.ok) {
+      currentTheme = t;
+      statusEl.style.display = 'inline';
+      toast('Theme saved! Refresh public site to see changes.', 'success');
+      setTimeout(() => statusEl.style.display='none', 4000);
+    } else toast('Save failed.', 'error');
+  });
+
+  document.getElementById('resetThemeBtn').addEventListener('click', async () => {
+    if (!confirm('Reset to default Navy & Gold theme?')) return;
+    applyPreset(0);
+    toast('Default theme loaded — click Save to apply.', 'success');
+  });
+</script>
+</body>
+</html>
