@@ -164,7 +164,7 @@
       <div class="card">
         <h3>Recent Counties</h3>
         <div style="overflow-x:auto"><table class="data-table" id="recentTable">
-          <thead><tr><th>County</th><th>State</th><th>Slug</th><th>Plan</th><th>Monthly</th><th>Roads</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Organization</th><th>State</th><th>Slug</th><th>Plan</th><th>Monthly</th><th>Roads</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody id="recentBody"><tr><td colspan="8" style="padding:30px;text-align:center;color:var(--muted)">Loading...</td></tr></tbody>
         </table></div>
       </div>
@@ -174,12 +174,12 @@
     <div class="panel" id="panel-counties">
       <div class="card">
         <div class="toolbar">
-          <input type="text" id="countySearch" placeholder="Search counties..." />
-          <button class="btn btn-add" id="addCountyBtn">+ Add County</button>
+          <input type="text" id="countySearch" placeholder="Search organizations..." />
+          <button class="btn btn-add" id="addCountyBtn">+ Add Organization</button>
         </div>
         <div style="overflow-x:auto"><table class="data-table">
-          <thead><tr><th>County</th><th>State</th><th>Slug / URL</th><th>Contact</th><th>Plan</th><th>Fees</th><th>Last Payment</th><th>Next Payment</th><th>Roads</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody id="countiesBody"><tr><td colspan="9" style="padding:30px;text-align:center;color:var(--muted)">Loading...</td></tr></tbody>
+          <thead><tr><th>Organization</th><th>Slug / URL</th><th>Contact</th><th>Plan</th><th>Fees</th><th>Last Payment</th><th>Next Payment</th><th>Roads</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="countiesBody"><tr><td colspan="10" style="padding:30px;text-align:center;color:var(--muted)">Loading...</td></tr></tbody>
         </table></div>
       </div>
     </div>
@@ -190,17 +190,17 @@
 <!-- ADD/EDIT MODAL -->
 <div class="modal-bg" id="modalBg">
   <div class="modal">
-    <h3 id="modalTitle">Add County</h3>
+    <h3 id="modalTitle">Add Organization</h3>
     <input type="hidden" id="editSlug" />
     <div class="modal-grid">
-      <div class="modal-field"><label>County Name *</label><input type="text" id="f_county_name" placeholder="Harris County" /></div>
+      <div class="modal-field"><label>Organization Name *</label><input type="text" id="f_county_name" placeholder="Waller County or City of Waller" /></div>
       <div class="modal-field"><label>State</label><input type="text" id="f_state" placeholder="TX" maxlength="2" /></div>
       <div class="modal-field"><label>Slug / Subdomain *</label><input type="text" id="f_slug" placeholder="harris" /></div>
       <div class="modal-field"><label>Plan</label>
         <select id="f_plan"><option value="standard">Standard</option><option value="premium">Premium</option></select>
       </div>
       <div class="modal-field"><label>Contact Name</label><input type="text" id="f_contact_name" placeholder="John Smith" /></div>
-      <div class="modal-field"><label>Contact Email</label><input type="text" id="f_contact_email" placeholder="john@harriscounty.gov" /></div>
+      <div class="modal-field"><label>Contact Email</label><input type="text" id="f_contact_email" placeholder="john@wallercounty.gov" /></div>
       <div class="modal-field"><label>Setup Fee ($)</label><input type="number" id="f_setup_fee" value="500" /></div>
       <div class="modal-field"><label>Monthly Fee ($)</label><input type="number" id="f_monthly_fee" value="99" /></div>
       <div class="modal-field"><label>Last Payment Date</label><input type="date" id="f_last_payment_date" /></div>
@@ -212,12 +212,12 @@
       <div class="creds-row"><span class="creds-label">URL</span><span class="creds-value" id="credsUrl">—</span></div>
       <div class="creds-row"><span class="creds-label">Username</span><span class="creds-value" id="credsUser">—</span></div>
       <div class="creds-row"><span class="creds-label">Password</span><span class="creds-value" id="credsPass">—</span></div>
-      <div class="creds-note">Send these credentials to the county administrator. The password cannot be recovered — only reset.</div>
+      <div class="creds-note">Send these credentials to the organization administrator. The password cannot be recovered — only reset.</div>
     </div>
     <div class="modal-error" id="modalError"></div>
     <div class="modal-actions">
       <button class="btn btn-gray" id="modalCancel">Cancel</button>
-      <button class="btn btn-add" id="modalSave">Create County</button>
+      <button class="btn btn-add" id="modalSave">Create Organization</button>
     </div>
   </div>
 </div>
@@ -297,11 +297,10 @@
 
   function renderTenants(tenants) {
     const tbody = document.getElementById('countiesBody');
-    if (!tenants.length) { tbody.innerHTML=`<tr><td colspan="11" style="padding:30px;text-align:center;color:var(--muted)">No counties found.</td></tr>`; return; }
+    if (!tenants.length) { tbody.innerHTML=`<tr><td colspan="10" style="padding:30px;text-align:center;color:var(--muted)">No counties found.</td></tr>`; return; }
     tbody.innerHTML = tenants.map(t => `
       <tr>
-        <td style="font-weight:600">${esc(t.county_name)}</td>
-        <td class="mono">${esc(t.state||'')}</td>
+        <td style="font-weight:600">${esc(t.county_name)}${t.state ? ', ' + esc(t.state) : ''}</td>
         <td>
           <span class="mono" style="font-size:12px;color:var(--muted)">${esc(t.slug)}.civicstreet.us</span>
         </td>
@@ -349,8 +348,8 @@
 
   function openModal(data) {
     const isEdit = !!data;
-    document.getElementById('modalTitle').textContent = isEdit ? 'Edit County' : 'Add County';
-    document.getElementById('modalSave').textContent  = isEdit ? 'Save Changes' : 'Create County';
+    document.getElementById('modalTitle').textContent = isEdit ? 'Edit Organization' : 'Add Organization';
+    document.getElementById('modalSave').textContent  = isEdit ? 'Save Changes' : 'Create Organization';
     document.getElementById('editSlug').value         = data?.slug || '';
     document.getElementById('f_county_name').value   = data?.county_name || '';
     document.getElementById('f_state').value         = data?.state || '';
@@ -436,7 +435,7 @@
       closeModal();
     }
 
-    toast(isEdit ? 'County updated.' : 'County created!', 'success');
+    toast(isEdit ? 'Organization updated.' : 'Organization created!', 'success');
     loadTenants(); loadStats();
   });
 
