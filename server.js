@@ -6,8 +6,6 @@ const multer     = require('multer');
 const { parse }  = require('csv-parse/sync');
 const XLSX       = require('xlsx');
 const initSqlJs  = require('sql.js');
-const nodemailer = require('nodemailer');
-
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
