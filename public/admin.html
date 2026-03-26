@@ -62,6 +62,10 @@
     .btn:disabled { opacity:.4; cursor:not-allowed; }
     .data-table { width:100%; border-collapse:collapse; font-size:13px; }
     .data-table th { background:var(--navy); color:var(--ice); padding:9px 12px; font-family:'DM Mono',monospace; font-size:10px; letter-spacing:.1em; text-transform:uppercase; text-align:left; }
+    .data-table th.sortable { cursor:pointer; user-select:none; }
+    .data-table th.sortable:hover { background:var(--ink); }
+    .data-table th.sort-asc::after  { content:' ▲'; font-size:9px; opacity:.9; }
+    .data-table th.sort-desc::after { content:' ▼'; font-size:9px; opacity:.9; }
     .data-table td { padding:10px 12px; border-bottom:1px solid var(--border); vertical-align:middle; }
     .data-table tr:last-child td { border-bottom:none; }
     .data-table tr:hover td { background:var(--fog); }
@@ -531,6 +535,8 @@
   let uploadMode = 'append';
   let selectedFile = null;
   let dragSrcIndex = null;
+  let sortCol = null;
+  let sortDir = 'asc';
 
   const H = (isForm) => { const h={'x-admin-token':TOKEN}; if(!isForm) h['Content-Type']='application/json'; return h; };
   const esc = s => (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -705,8 +711,26 @@
   // ── RECORDS ──────────────────────────────────────────────────────────
   function renderTableHeader(){
     const vis=columns.filter(c=>c.visible!==false);
-    document.getElementById('recordsHead').innerHTML=`<tr>${vis.map(c=>`<th>${esc(c.label)}</th>`).join('')}<th>Updated</th><th>Actions</th></tr>`;
+    const thCols = vis.map(c=>{
+      const isSorted = sortCol === c.key;
+      const cls = 'sortable' + (isSorted ? (sortDir==='asc' ? ' sort-asc' : ' sort-desc') : '');
+      return `<th class="${cls}" onclick="setSort('${esc(c.key)}')">${esc(c.label)}</th>`;
+    }).join('');
+    const updatedCls = 'sortable' + (sortCol==='updated_at' ? (sortDir==='asc' ? ' sort-asc' : ' sort-desc') : '');
+    document.getElementById('recordsHead').innerHTML=`<tr>${thCols}<th class="${updatedCls}" onclick="setSort('updated_at')">Updated</th><th>Actions</th></tr>`;
   }
+
+  function setSort(key) {
+    if (sortCol === key) {
+      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortCol = key;
+      sortDir = 'asc';
+    }
+    currentPage = 1;
+    loadRecords();
+  }
+  window.setSort = setSort;
 
   let sTimer=null;
   document.getElementById('adminSearch').addEventListener('input',()=>{clearTimeout(sTimer);sTimer=setTimeout(()=>{currentPage=1;loadRecords();},200);});
@@ -719,7 +743,26 @@
     const vis=columns.filter(c=>c.visible!==false);
     const tbody=document.getElementById('recordsBody');
     if(!data.results.length){tbody.innerHTML=`<tr><td colspan="${vis.length+2}" style="padding:40px;text-align:center;color:var(--muted)">No records found.</td></tr>`;return;}
-    tbody.innerHTML=data.results.map(r=>`
+
+    let rows = data.results.slice();
+    if (sortCol) {
+      rows.sort((a, b) => {
+        let av = a[sortCol] ?? '';
+        let bv = b[sortCol] ?? '';
+        // Numeric-aware compare
+        const an = parseFloat(av), bn = parseFloat(bv);
+        if (!isNaN(an) && !isNaN(bn)) {
+          return sortDir === 'asc' ? an - bn : bn - an;
+        }
+        av = av.toString().toLowerCase();
+        bv = bv.toString().toLowerCase();
+        if (av < bv) return sortDir === 'asc' ? -1 : 1;
+        if (av > bv) return sortDir === 'asc' ?  1 : -1;
+        return 0;
+      });
+    }
+
+    tbody.innerHTML=rows.map(r=>`
       <tr>
         ${vis.map(c=>`<td ${c.key==='road_name'?'class="mono"':''}>${esc(r[c.key]||'—')}</td>`).join('')}
         <td style="font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)">${fmtDate(r.updated_at)}</td>
