@@ -382,15 +382,15 @@ app.post('/manage/api/tenants', superAuth, async (req, res) => {
 
 // Email credentials to county contact
 app.post('/manage/api/tenants/:slug/email-credentials', superAuth, async (req, res) => {
-  const mdb = await getMasterDb();
-  const t = dbGet(mdb, `SELECT * FROM tenants WHERE slug=?`, [req.params.slug]);
-  if (!t) return res.status(404).json({ error: 'Tenant not found' });
-  if (!t.contact_email) return res.status(400).json({ error: 'No contact email on file for this county' });
-  const { db } = await getTenantDb(req.params.slug);
-  const getSetting = (k) => { const r = dbGet(db,`SELECT value FROM settings WHERE key=?`,[k]); return r?JSON.parse(r.value):null; };
-  const creds = getSetting('admin_credentials');
-  if (!creds) return res.status(400).json({ error: 'No credentials found' });
   try {
+    const mdb = await getMasterDb();
+    const t = dbGet(mdb, `SELECT * FROM tenants WHERE slug=?`, [req.params.slug]);
+    if (!t) return res.status(404).json({ error: 'Tenant not found' });
+    if (!t.contact_email) return res.status(400).json({ error: 'No contact email on file for this county' });
+    const { db } = await getTenantDb(req.params.slug);
+    const getSetting = (k) => { try { const r = dbGet(db,`SELECT value FROM settings WHERE key=?`,[k]); return r?JSON.parse(r.value):null; } catch(e) { return null; } };
+    const creds = getSetting('admin_credentials');
+    if (!creds) return res.status(400).json({ error: 'No credentials found for this county' });
     await sendCredentialsEmail({
       to: t.contact_email,
       countyName: t.county_name,
@@ -400,6 +400,7 @@ app.post('/manage/api/tenants/:slug/email-credentials', superAuth, async (req, r
     });
     res.json({ ok: true });
   } catch(e) {
+    console.error('Email credentials error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
