@@ -203,6 +203,7 @@
     <button class="nav-tab" data-panel="theme">Theme</button>
     <button class="nav-tab" data-panel="upload">Upload File</button>
     <button class="nav-tab" data-panel="audit">Audit Log</button>
+    <button class="nav-tab" data-panel="password">Change Password</button>
   </div>
   <div class="content">
 
@@ -483,6 +484,28 @@
         <div id="auditList"><div style="padding:40px;text-align:center;color:var(--muted);font-size:13px">Loading…</div></div>
       </div>
     </div>
+
+    <!-- CHANGE PASSWORD -->
+    <div class="panel" id="panel-password">
+      <div class="card" style="max-width:420px">
+        <h3 style="font-size:16px;font-weight:700;margin-bottom:20px;color:var(--navy)">Change Password</h3>
+        <div style="margin-bottom:14px">
+          <label style="display:block;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Current Password</label>
+          <input type="password" id="cp_current" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:4px;font-size:14px;outline:none;color:var(--navy)" />
+        </div>
+        <div style="margin-bottom:14px">
+          <label style="display:block;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">New Password</label>
+          <input type="password" id="cp_new" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:4px;font-size:14px;outline:none;color:var(--navy)" />
+        </div>
+        <div style="margin-bottom:20px">
+          <label style="display:block;font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Confirm New Password</label>
+          <input type="password" id="cp_confirm" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:4px;font-size:14px;outline:none;color:var(--navy)" />
+        </div>
+        <div id="cp_error" style="color:#c0392b;font-size:13px;margin-bottom:12px;display:none"></div>
+        <div id="cp_success" style="color:#27ae60;font-size:13px;margin-bottom:12px;display:none">Password changed successfully!</div>
+        <button class="btn btn-save" id="cp_submit" style="padding:10px 24px">Change Password</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -546,6 +569,31 @@
   document.getElementById('logoutBtn').addEventListener('click', async ()=>{
     await fetch('/api/admin/logout',{method:'POST',headers:H()});
     sessionStorage.removeItem('adminToken'); location.reload();
+  });
+
+  // CHANGE PASSWORD
+  document.getElementById('cp_submit').addEventListener('click', async () => {
+    const current = document.getElementById('cp_current').value;
+    const newPass  = document.getElementById('cp_new').value;
+    const confirm  = document.getElementById('cp_confirm').value;
+    const errEl    = document.getElementById('cp_error');
+    const okEl     = document.getElementById('cp_success');
+    errEl.style.display = 'none';
+    okEl.style.display  = 'none';
+    if (!current || !newPass || !confirm) { errEl.textContent='All fields are required.'; errEl.style.display='block'; return; }
+    if (newPass !== confirm) { errEl.textContent='New passwords do not match.'; errEl.style.display='block'; return; }
+    if (newPass.length < 8) { errEl.textContent='New password must be at least 8 characters.'; errEl.style.display='block'; return; }
+    const res = await fetch('/api/admin/change-password', { method:'POST', headers:H(), body:JSON.stringify({ current_password:current, new_password:newPass }) });
+    const data = await res.json();
+    if (res.ok) {
+      okEl.style.display = 'block';
+      document.getElementById('cp_current').value = '';
+      document.getElementById('cp_new').value = '';
+      document.getElementById('cp_confirm').value = '';
+    } else {
+      errEl.textContent = data.error || 'Failed to change password.';
+      errEl.style.display = 'block';
+    }
   });
 
   // TABS

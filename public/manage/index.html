@@ -316,6 +316,7 @@
               : `<button class="btn btn-add" style="padding:5px 12px;font-size:11px" onclick="activateTenant('${esc(t.slug)}')">Activate</button>`
             }
             <button class="btn" style="background:#7f1d1d;color:#fff;padding:5px 12px;font-size:11px" onclick="deleteTenant('${esc(t.slug)}','${esc(t.county_name)}')">Delete</button>
+            <button class="btn" style="background:#1a5276;color:#fff;padding:5px 12px;font-size:11px" onclick="emailCreds('${esc(t.slug)}','${esc(t.county_name)}')">Email Login</button>
           </div>
         </td>
       </tr>`).join('');
@@ -373,14 +374,17 @@
     openModal(data);
   }
 
-  // Auto-fill slug from county name
-  document.getElementById('f_county_name').addEventListener('input', e => {
+  // Auto-fill slug from county name + state
+  function updateSlug() {
     const slugEl = document.getElementById('f_slug');
-    if (!slugEl.disabled && !slugEl.dataset.manual) {
-      slugEl.value = e.target.value.toLowerCase()
-        .replace(/\s+county$/i,'').replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
-    }
-  });
+    if (slugEl.disabled || slugEl.dataset.manual) return;
+    const county = document.getElementById('f_county_name').value.toLowerCase()
+      .replace(/\s+county$/i,'').replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
+    const state = document.getElementById('f_state').value.toLowerCase().replace(/[^a-z]/g,'');
+    slugEl.value = state ? `${county}-${state}` : county;
+  }
+  document.getElementById('f_county_name').addEventListener('input', updateSlug);
+  document.getElementById('f_state').addEventListener('input', updateSlug);
   document.getElementById('f_slug').addEventListener('input', e => { e.target.dataset.manual = e.target.value ? '1' : ''; });
 
   document.getElementById('modalSave').addEventListener('click', async () => {
@@ -455,12 +459,21 @@
     else { toast('Delete failed.', 'error'); }
   }
 
+  async function emailCreds(slug, name) {
+    if (!confirm(`Email login credentials to the contact on file for ${name}?`)) return;
+    const res = await fetch(`/manage/api/tenants/${slug}/email-credentials`, { method:'POST', headers: H() });
+    const data = await res.json();
+    if (res.ok) toast(`Credentials emailed to ${name}!`, 'success');
+    else toast(data.error || 'Failed to send email.', 'error');
+  }
+
   // Make functions global for onclick
   window.editTenant = editTenant;
   window.resetPass = resetPass;
   window.suspendTenant = suspendTenant;
   window.activateTenant = activateTenant;
   window.deleteTenant = deleteTenant;
+  window.emailCreds = emailCreds;
 
   function esc(s) { return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function toast(msg, type='success') { const el=document.getElementById('toast'); el.textContent=msg; el.className=`toast show ${type}`; setTimeout(()=>el.classList.remove('show'),3000); }
