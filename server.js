@@ -12,49 +12,47 @@ const app  = express();
 const PORT = process.env.PORT || 3000;
 
 // ── Email setup ───────────────────────────────────────────────────────────
-const emailTransporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
-
 async function sendCredentialsEmail({ to, countyName, slug, username, password }) {
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) return { ok: false, error: 'Email not configured' };
-  const loginUrl = `https://${slug}.civicstreet.us/admin.html`;
+  if (!process.env.RESEND_API_KEY) return { ok: false, error: 'Email not configured' };
+  const loginUrl  = `https://${slug}.civicstreet.us/admin.html`;
   const publicUrl = `https://${slug}.civicstreet.us`;
-  await emailTransporter.sendMail({
-    from: `"CivicStreet" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
-    to,
-    subject: `Your CivicStreet Account — ${countyName}`,
-    html: `
-      <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#0a1628">
-        <div style="background:#0a1628;padding:24px 32px;border-bottom:3px solid #e8a020">
-          <h1 style="color:#fff;margin:0;font-size:22px">CivicStreet</h1>
-          <p style="color:rgba(255,255,255,0.5);margin:4px 0 0;font-size:13px">Road Name Index by CLR Mapping Solutions</p>
-        </div>
-        <div style="padding:32px">
-          <h2 style="font-size:18px;margin-bottom:8px">Welcome, ${countyName}!</h2>
-          <p style="color:#5a6a7a;font-size:15px;line-height:1.6">Your CivicStreet road name index is ready. Here are your login credentials — please save these in a secure location.</p>
-          <div style="background:#f4f6f8;border-radius:8px;padding:24px;margin:24px 0">
-            <p style="margin:0 0 12px;font-size:13px;color:#5a6a7a;text-transform:uppercase;letter-spacing:0.1em;font-family:monospace">Your Credentials</p>
-            <p style="margin:0 0 8px;font-size:15px"><strong>Staff Login URL:</strong> <a href="${loginUrl}" style="color:#2d7dd2">${loginUrl}</a></p>
-            <p style="margin:0 0 8px;font-size:15px"><strong>Username:</strong> <span style="font-family:monospace;background:#e8f1fb;padding:2px 8px;border-radius:3px">${username}</span></p>
-            <p style="margin:0;font-size:15px"><strong>Temporary Password:</strong> <span style="font-family:monospace;background:#e8f1fb;padding:2px 8px;border-radius:3px">${password}</span></p>
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from: 'CivicStreet <noreply@civicstreet.us>',
+      to: [to],
+      subject: `Your CivicStreet Account — ${countyName}`,
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#0a1628">
+          <div style="background:#0a1628;padding:24px 32px;border-bottom:3px solid #e8a020">
+            <h1 style="color:#fff;margin:0;font-size:22px">CivicStreet</h1>
+            <p style="color:rgba(255,255,255,0.5);margin:4px 0 0;font-size:13px">Road Name Index by CLR Mapping Solutions</p>
           </div>
-          <p style="color:#5a6a7a;font-size:14px">Your public road name search page is available at:<br><a href="${publicUrl}" style="color:#2d7dd2">${publicUrl}</a></p>
-          <p style="color:#e8a020;font-size:13px;background:#fef9ec;border:1px solid #f0d080;border-radius:6px;padding:12px">⚠️ Please change your password after your first login using the <strong>Change Password</strong> tab.</p>
-          <p style="color:#5a6a7a;font-size:13px;margin-top:24px">Questions? Contact us at <a href="mailto:john.murrell@clrmapping.com" style="color:#2d7dd2">john.murrell@clrmapping.com</a> or call (979) 256-5880.</p>
+          <div style="padding:32px">
+            <h2 style="font-size:18px;margin-bottom:8px">Welcome, ${countyName}!</h2>
+            <p style="color:#5a6a7a;font-size:15px;line-height:1.6">Your CivicStreet road name index is ready. Here are your login credentials — please save these in a secure location.</p>
+            <div style="background:#f4f6f8;border-radius:8px;padding:24px;margin:24px 0">
+              <p style="margin:0 0 12px;font-size:13px;color:#5a6a7a;text-transform:uppercase;letter-spacing:0.1em;font-family:monospace">Your Credentials</p>
+              <p style="margin:0 0 8px;font-size:15px"><strong>Staff Login URL:</strong> <a href="${loginUrl}" style="color:#2d7dd2">${loginUrl}</a></p>
+              <p style="margin:0 0 8px;font-size:15px"><strong>Username:</strong> <span style="font-family:monospace;background:#e8f1fb;padding:2px 8px;border-radius:3px">${username}</span></p>
+              <p style="margin:0;font-size:15px"><strong>Temporary Password:</strong> <span style="font-family:monospace;background:#e8f1fb;padding:2px 8px;border-radius:3px">${password}</span></p>
+            </div>
+            <p style="color:#5a6a7a;font-size:14px">Your public road name search page:<br><a href="${publicUrl}" style="color:#2d7dd2">${publicUrl}</a></p>
+            <p style="color:#e8a020;font-size:13px;background:#fef9ec;border:1px solid #f0d080;border-radius:6px;padding:12px">⚠️ Please change your password after your first login using the <strong>Change Password</strong> tab.</p>
+            <p style="color:#5a6a7a;font-size:13px;margin-top:24px">Questions? Contact us at <a href="mailto:john.murrell@clrmapping.com" style="color:#2d7dd2">john.murrell@clrmapping.com</a> or call (979) 256-5880.</p>
+          </div>
+          <div style="background:#f4f6f8;padding:16px 32px;text-align:center;font-size:12px;color:#999">
+            © 2026 CLR Mapping Solutions LLC · <a href="https://clrmapping.com" style="color:#999">clrmapping.com</a>
+          </div>
         </div>
-        <div style="background:#f4f6f8;padding:16px 32px;text-align:center;font-size:12px;color:#999">
-          © 2026 CLR Mapping Solutions LLC · <a href="https://clrmapping.com" style="color:#999">clrmapping.com</a>
-        </div>
-      </div>
-    `,
+      `,
+    }),
   });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.message || 'Resend API error');
+  }
   return { ok: true };
 }
 
