@@ -245,16 +245,19 @@ app.use(async (req, res, next) => {
 app.use('/manage', express.static(path.join(PUBLIC_DIR, 'manage')));
 
 // Serve tenant static files
+// Dedicated logo serving route
+app.get('/logo/:filename', resolveTenant, (req, res) => {
+  if (!req.tenantSlug) return res.status(404).send('Not found');
+  const logoDir = path.join(TENANTS_DIR, req.tenantSlug + '-logo');
+  const filePath = path.join(logoDir, req.params.filename);
+  if (fs.existsSync(filePath)) {
+    return res.sendFile(filePath);
+  }
+  res.status(404).send('Logo not found');
+});
+
 app.use((req, res, next) => {
   if (req.tenantSlug) {
-    // Serve logo files for tenant
-    if (req.path.startsWith('/logo/')) {
-      const logoPath = path.join(TENANTS_DIR, req.tenantSlug + '-logo');
-      if (fs.existsSync(logoPath)) {
-        return express.static(logoPath)(req, res, next);
-      }
-      return res.status(404).send('Logo not found');
-    }
     return express.static(PUBLIC_DIR)(req, res, next);
   }
   next();
