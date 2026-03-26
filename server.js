@@ -381,7 +381,7 @@ app.post('/manage/api/tenants', superAuth, async (req, res) => {
 });
 
 // Email credentials to county contact
-app.post('/manage/api/tenants/:slug/email-credentials', superAuth, async (req, res) => {
+app.post('/manage/api/tenants/:slug/send-login', superAuth, async (req, res) => {
   try {
     const mdb = await getMasterDb();
     const t = dbGet(mdb, `SELECT * FROM tenants WHERE slug=?`, [req.params.slug]);
