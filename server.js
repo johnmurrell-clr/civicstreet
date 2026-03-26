@@ -637,10 +637,16 @@ app.post('/api/admin/logo', resolveTenant, tenantAuth, logoUpload.single('logo')
   if (!req.file) return res.status(400).json({error:'No file'});
   const ext = path.extname(req.file.originalname).toLowerCase();
   const logoDir = path.join(TENANTS_DIR, req.tenantSlug+'-logo');
-  if (!fs.existsSync(logoDir)) fs.mkdirSync(logoDir);
+  try { if (!fs.existsSync(logoDir)) fs.mkdirSync(logoDir, { recursive: true }); } catch(e) {}
   try { fs.readdirSync(logoDir).forEach(f=>fs.unlinkSync(path.join(logoDir,f))); } catch{}
   const destName = 'logo'+ext;
-  fs.renameSync(req.file.path, path.join(logoDir,destName));
+  const destPath = path.join(logoDir, destName);
+  try {
+    fs.copyFileSync(req.file.path, destPath);
+    fs.unlinkSync(req.file.path);
+  } catch(e) {
+    return res.status(500).json({ error: 'Failed to save logo: ' + e.message });
+  }
   const b = {...(req.getSetting('branding')||{}), logo_file:'/logo/'+destName};
   req.setSetting('branding',b);
   res.json({ok:true,logo_file:'/logo/'+destName});
