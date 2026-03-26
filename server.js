@@ -99,7 +99,13 @@ async function getDb(dbPath) {
 }
 
 function saveDb(db, dbPath) {
-  fs.writeFileSync(dbPath, Buffer.from(db.export()));
+  try {
+    const dir = path.dirname(dbPath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(dbPath, Buffer.from(db.export()));
+  } catch(e) {
+    console.error('Warning: saveDb failed for', dbPath, ':', e.message);
+  }
 }
 
 function dbRun(db, dbPath, sql, params = [])  { db.run(sql, params); saveDb(db, dbPath); }
@@ -195,7 +201,7 @@ async function getTenantDb(slug) {
     contact_email:'', logo_file:'',
   });
 
-  saveDb(db, path.join(TENANTS_DIR, `${slug}.db`));
+  try { saveDb(db, path.join(TENANTS_DIR, `${slug}.db`)); } catch(e) { console.error('Warning: could not save tenant db:', e.message); }
   return { db, dbPath: path.join(TENANTS_DIR, `${slug}.db`) };
 }
 
