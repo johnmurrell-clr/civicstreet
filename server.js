@@ -248,9 +248,12 @@ app.use('/manage', express.static(path.join(PUBLIC_DIR, 'manage')));
 app.use((req, res, next) => {
   if (req.tenantSlug) {
     // Serve logo files for tenant
-    const logoPath = path.join(TENANTS_DIR, req.tenantSlug + '-logo');
-    if (fs.existsSync(logoPath) && req.path.startsWith('/logo/')) {
-      return express.static(logoPath)(req, res, next);
+    if (req.path.startsWith('/logo/')) {
+      const logoPath = path.join(TENANTS_DIR, req.tenantSlug + '-logo');
+      if (fs.existsSync(logoPath)) {
+        return express.static(logoPath)(req, res, next);
+      }
+      return res.status(404).send('Logo not found');
     }
     return express.static(PUBLIC_DIR)(req, res, next);
   }
