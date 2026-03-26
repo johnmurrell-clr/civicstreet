@@ -358,7 +358,7 @@
     document.getElementById('f_plan').value          = data?.plan || 'standard';
     document.getElementById('f_contact_name').value  = data?.contact_name || '';
     document.getElementById('f_contact_email').value = data?.contact_email || '';
-    document.getElementById('f_setup_fee').value     = data?.setup_fee ?? 500;
+    document.getElementById('f_setup_fee').value     = data?.setup_fee !== undefined && data?.setup_fee !== null ? data.setup_fee : 500;
     document.getElementById('f_monthly_fee').value   = data?.monthly_fee ?? 99;
     document.getElementById('f_last_payment_date').value = data?.last_payment_date || '';
     document.getElementById('f_next_payment_date').value = data?.next_payment_date || '';
