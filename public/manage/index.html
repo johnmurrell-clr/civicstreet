@@ -386,7 +386,7 @@
     const slugEl = document.getElementById('f_slug');
     if (slugEl.disabled || slugEl.dataset.manual) return;
     const county = document.getElementById('f_county_name').value.toLowerCase()
-      .replace(/\s+county$/i,'').replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
+      .replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
     const state = document.getElementById('f_state').value.toLowerCase().replace(/[^a-z]/g,'');
     slugEl.value = state ? `${county}-${state}` : county;
   }
