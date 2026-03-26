@@ -138,10 +138,14 @@ async function getMasterDb() {
     setup_fee    REAL DEFAULT 500,
     monthly_fee  REAL DEFAULT 99,
     notes        TEXT,
+    last_payment_date TEXT,
+    next_payment_date TEXT,
     created_at   TEXT DEFAULT (datetime('now')),
     updated_at   TEXT DEFAULT (datetime('now'))
   )`);
-  db.run(`CREATE TABLE IF NOT EXISTS super_sessions (
+  // Add columns if they don't exist (for existing databases)
+  try { db.run(`ALTER TABLE tenants ADD COLUMN last_payment_date TEXT`); } catch(e) {}
+  try { db.run(`ALTER TABLE tenants ADD COLUMN next_payment_date TEXT`); } catch(e) {}  db.run(`CREATE TABLE IF NOT EXISTS super_sessions (
     token TEXT PRIMARY KEY,
     created_at TEXT DEFAULT (datetime('now'))
   )`);
@@ -412,10 +416,10 @@ app.post('/manage/api/tenants/:slug/send-login', superAuth, async (req, res) => 
 });
 app.put('/manage/api/tenants/:slug', superAuth, async (req, res) => {
   const mdb = await getMasterDb();
-  const { county_name, state, contact_name, contact_email, plan, status, setup_fee, monthly_fee, notes } = req.body;
+  const { county_name, state, contact_name, contact_email, plan, status, setup_fee, monthly_fee, notes, last_payment_date, next_payment_date } = req.body;
   dbRun(mdb, MASTER_DB_PATH,
-    `UPDATE tenants SET county_name=?,state=?,contact_name=?,contact_email=?,plan=?,status=?,setup_fee=?,monthly_fee=?,notes=?,updated_at=datetime('now') WHERE slug=?`,
-    [county_name,state,contact_name,contact_email,plan,status,setup_fee,monthly_fee,notes,req.params.slug]);
+    `UPDATE tenants SET county_name=?,state=?,contact_name=?,contact_email=?,plan=?,status=?,setup_fee=?,monthly_fee=?,notes=?,last_payment_date=?,next_payment_date=?,updated_at=datetime('now') WHERE slug=?`,
+    [county_name,state,contact_name,contact_email,plan,status,setup_fee,monthly_fee,notes,last_payment_date||null,next_payment_date||null,req.params.slug]);
   res.json({ ok: true });
 });
 
