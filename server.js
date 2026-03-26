@@ -72,7 +72,7 @@ const DATA_DIR     = path.join(VOLUME_DIR, 'master');
 const UPLOADS_DIR  = path.join(__dirname, 'uploads');
 const PUBLIC_DIR   = path.join(__dirname, 'public');
 
-[TENANTS_DIR, DATA_DIR, UPLOADS_DIR].forEach(d => { if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); });
+[TENANTS_DIR, DATA_DIR, UPLOADS_DIR].forEach(d => { try { if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); } catch(e) { console.error('Warning: could not create dir', d, e.message); } });
 
 // ── Super admin credentials ───────────────────────────────────────────────
 const SUPER_ADMIN_USER = process.env.SUPER_ADMIN_USER || 'clradmin';
