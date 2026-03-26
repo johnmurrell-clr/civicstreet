@@ -10,7 +10,7 @@ const app  = express();
 const PORT = process.env.PORT || 3000;
 
 // ── Email setup ───────────────────────────────────────────────────────────
-const https = require('https');
+const httpsModule = require('https');
 
 function sendCredentialsEmail({ to, countyName, slug, username, password }) {
   return new Promise((resolve, reject) => {
@@ -33,16 +33,16 @@ function sendCredentialsEmail({ to, countyName, slug, username, password }) {
       + '<p style="color:#e8a020;font-size:13px;background:#fef9ec;border:1px solid #f0d080;border-radius:6px;padding:12px">Please change your password after first login using the Change Password tab.</p>'
       + '<p style="color:#5a6a7a;font-size:13px;margin-top:24px">Questions? Contact john.murrell@clrmapping.com or (979) 256-5880.</p>'
       + '</div><div style="background:#f4f6f8;padding:16px 32px;text-align:center;font-size:12px;color:#999">'
-      + '© 2026 CLR Mapping Solutions LLC</div></div>';
+      + '2026 CLR Mapping Solutions LLC</div></div>';
 
     const body = JSON.stringify({
       from: 'CivicStreet <noreply@civicstreet.us>',
       to: [to],
-      subject: 'Your CivicStreet Account — ' + countyName,
+      subject: 'Your CivicStreet Account - ' + countyName,
       html: html,
     });
 
-    const req = https.request({
+    const reqOptions = {
       hostname: 'api.resend.com',
       path: '/emails',
       method: 'POST',
@@ -51,15 +51,21 @@ function sendCredentialsEmail({ to, countyName, slug, username, password }) {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(body),
       },
-    }, (res) => {
+    };
+
+    const req = httpsModule.request(reqOptions, (response) => {
       let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) resolve({ ok: true });
-        else { try { reject(new Error(JSON.parse(data).message || 'Resend error')); } catch(e) { reject(new Error('Resend error: ' + data)); } }
+      response.on('data', chunk => { data += chunk; });
+      response.on('end', () => {
+        if (response.statusCode >= 200 && response.statusCode < 300) {
+          resolve({ ok: true });
+        } else {
+          try { reject(new Error(JSON.parse(data).message || 'Resend error')); }
+          catch(e) { reject(new Error('Resend error ' + response.statusCode + ': ' + data)); }
+        }
       });
     });
-    req.on('error', reject);
+    req.on('error', (e) => reject(e));
     req.write(body);
     req.end();
   });
