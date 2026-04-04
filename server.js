@@ -569,9 +569,14 @@ app.post('/api/admin/change-password', resolveTenant, tenantAuth, (req, res) => 
 app.get('/api/admin/roads', resolveTenant, tenantAuth, (req, res) => {
   const q = (req.query.q||'').trim(), page = Math.max(1,parseInt(req.query.page)||1);
   const limit = Math.min(parseInt(req.query.limit)||50,200), offset = (page-1)*limit;
+  const cols = req.getSetting('columns') || DEFAULT_COLUMNS;
+  const validCols = cols.map(c => c.key);
+  const sortCol = validCols.includes(req.query.sort) ? req.query.sort : 'road_name';
+  const sortDir = req.query.dir === 'desc' ? 'DESC' : 'ASC';
+  const orderBy = `ORDER BY ${sortCol} ${sortDir}`;
   const rows = q
-    ? dbAll(req.db,`SELECT * FROM roads WHERE UPPER(road_name) LIKE ? OR UPPER(subdivision) LIKE ? ORDER BY road_name ASC LIMIT ? OFFSET ?`,[likeUp(q),likeUp(q),limit,offset])
-    : dbAll(req.db,`SELECT * FROM roads ORDER BY road_name ASC LIMIT ? OFFSET ?`,[limit,offset]);
+    ? dbAll(req.db,`SELECT * FROM roads WHERE UPPER(road_name) LIKE ? OR UPPER(subdivision) LIKE ? ${orderBy} LIMIT ? OFFSET ?`,[likeUp(q),likeUp(q),limit,offset])
+    : dbAll(req.db,`SELECT * FROM roads ${orderBy} LIMIT ? OFFSET ?`,[limit,offset]);
   const totalRow = q
     ? dbGet(req.db,`SELECT COUNT(*) as n FROM roads WHERE UPPER(road_name) LIKE ? OR UPPER(subdivision) LIKE ?`,[likeUp(q),likeUp(q)])
     : dbGet(req.db,`SELECT COUNT(*) as n FROM roads`);
@@ -589,8 +594,21 @@ app.post('/api/admin/roads', resolveTenant, tenantAuth, (req, res) => {
   if (!road_name?.trim()) return res.status(400).json({ error: 'road_name required' });
   if (dbGet(req.db,`SELECT id FROM roads WHERE UPPER(road_name)=?`,[road_name.trim().toUpperCase()]))
     return res.status(409).json({ error: `"${road_name.toUpperCase()}" already exists` });
-  dbRun(req.db,req.dbPath,`INSERT INTO roads(road_name,road_type,subdivision,notes,status) VALUES(?,?,?,?,?)`,
-    [road_name.trim().toUpperCase(),(road_type||'').trim()||null,(subdivision||'').trim()||null,(notes||'').trim()||null,status||'Active']);
+
+  // Get custom columns and build dynamic insert
+  const cols = req.getSetting('columns') || DEFAULT_COLUMNS;
+  const defaultKeys = ['road_name','road_type','subdivision','notes','status','id','created_at','updated_at'];
+  const customCols = cols.filter(c => !defaultKeys.includes(c.key) && req.body[c.key] !== undefined);
+  const allKeys = ['road_name','road_type','subdivision','notes','status', ...customCols.map(c => c.key)];
+  const allVals = [road_name.trim().toUpperCase(),(road_type||'').trim()||null,(subdivision||'').trim()||null,(notes||'').trim()||null,status||'Active', ...customCols.map(c => (req.body[c.key]||'').trim()||null)];
+  const placeholders = allKeys.map(() => '?').join(',');
+  try {
+    dbRun(req.db, req.dbPath, `INSERT INTO roads(${allKeys.join(',')}) VALUES(${placeholders})`, allVals);
+  } catch(e) {
+    // Fallback to default columns only
+    dbRun(req.db,req.dbPath,`INSERT INTO roads(road_name,road_type,subdivision,notes,status) VALUES(?,?,?,?,?)`,
+      [road_name.trim().toUpperCase(),(road_type||'').trim()||null,(subdivision||'').trim()||null,(notes||'').trim()||null,status||'Active']);
+  }
   const newRow = dbGet(req.db,`SELECT id FROM roads WHERE UPPER(road_name)=? ORDER BY id DESC LIMIT 1`,[road_name.trim().toUpperCase()]);
   logAction(req,'ADD',newRow?.id,`Added "${road_name.trim().toUpperCase()}"`);
   res.json({ id: newRow?.id, ok: true });
@@ -599,8 +617,22 @@ app.post('/api/admin/roads', resolveTenant, tenantAuth, (req, res) => {
 app.put('/api/admin/roads/:id', resolveTenant, tenantAuth, (req, res) => {
   const { road_name, road_type, subdivision, notes, status } = req.body;
   if (!road_name?.trim()) return res.status(400).json({ error: 'road_name required' });
-  dbRun(req.db,req.dbPath,`UPDATE roads SET road_name=?,road_type=?,subdivision=?,notes=?,status=?,updated_at=datetime('now') WHERE id=?`,
-    [road_name.trim().toUpperCase(),(road_type||'').trim()||null,(subdivision||'').trim()||null,(notes||'').trim()||null,status||'Active',req.params.id]);
+
+  // Get custom columns and build dynamic update
+  const cols = req.getSetting('columns') || DEFAULT_COLUMNS;
+  const defaultKeys = ['road_name','road_type','subdivision','notes','status','id','created_at','updated_at'];
+  const customCols = cols.filter(c => !defaultKeys.includes(c.key) && req.body[c.key] !== undefined);
+  const customSets = customCols.map(c => `${c.key}=?`).join(',');
+  const customVals = customCols.map(c => (req.body[c.key]||'').trim()||null);
+  const extraSets = customSets ? ',' + customSets : '';
+  try {
+    dbRun(req.db,req.dbPath,
+      `UPDATE roads SET road_name=?,road_type=?,subdivision=?,notes=?,status=?,updated_at=datetime('now')${extraSets} WHERE id=?`,
+      [road_name.trim().toUpperCase(),(road_type||'').trim()||null,(subdivision||'').trim()||null,(notes||'').trim()||null,status||'Active',...customVals,req.params.id]);
+  } catch(e) {
+    dbRun(req.db,req.dbPath,`UPDATE roads SET road_name=?,road_type=?,subdivision=?,notes=?,status=?,updated_at=datetime('now') WHERE id=?`,
+      [road_name.trim().toUpperCase(),(road_type||'').trim()||null,(subdivision||'').trim()||null,(notes||'').trim()||null,status||'Active',req.params.id]);
+  }
   logAction(req,'EDIT',req.params.id,`Updated "${road_name.trim().toUpperCase()}"`);
   res.json({ ok: true });
 });
