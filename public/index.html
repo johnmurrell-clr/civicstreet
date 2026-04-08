@@ -256,11 +256,14 @@
         return;
       }
       var hlField=activeTab==='subdivision'?'subdivision':'road_name';
+      var hlFields = cols.filter(function(c){return c.searchable;}).map(function(c){return c.key;});
+      if(hlFields.indexOf('road_name')<0) hlFields.unshift('road_name');
       list.innerHTML=data.results.map(function(r){
         var cells=cols.map(function(col){
           var field=col.dbField||col.key;
           var val=r[field]||'';
-          var display=(col.key===hlField)?hl(val,q):(val||'--');
+          var shouldHl = hlFields.indexOf(col.key)>=0;
+          var display=(shouldHl&&q)?hl(val,q):(val||'--');
           return '<span class="'+cellClass(col,val)+'">'+display+'</span>';
         }).join('');
         return '<li>'+cells+'</li>';

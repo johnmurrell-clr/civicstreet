@@ -608,9 +608,18 @@ app.get('/api/stats', resolveTenant, (req, res) => {
 
 app.get('/api/search', resolveTenant, (req, res) => {
   const q = (req.query.q||'').trim(), limit = Math.min(parseInt(req.query.limit)||200,1000);
-  const rows = q
-    ? dbAll(req.db,`SELECT * FROM roads WHERE UPPER(road_name) LIKE ? ORDER BY road_name ASC LIMIT ?`,[likeUp(q),limit])
-    : dbAll(req.db,`SELECT * FROM roads ORDER BY road_name ASC LIMIT ?`,[limit]);
+  if (!q) {
+    const rows = dbAll(req.db,`SELECT * FROM roads ORDER BY road_name ASC LIMIT ?`,[limit]);
+    return res.json({ results: rows, total: rows.length });
+  }
+  // Build WHERE clause from all searchable columns
+  const cols = req.getSetting('columns') || DEFAULT_COLUMNS;
+  const searchableCols = cols.filter(c => c.searchable).map(c => c.key);
+  // Always include road_name
+  if (!searchableCols.includes('road_name')) searchableCols.unshift('road_name');
+  const whereParts = searchableCols.map(k => `UPPER(\`${k}\`) LIKE ?`).join(' OR ');
+  const params = [...searchableCols.map(() => likeUp(q)), limit];
+  const rows = dbAll(req.db,`SELECT * FROM roads WHERE ${whereParts} ORDER BY road_name ASC LIMIT ?`, params);
   res.json({ results: rows, total: rows.length });
 });
 
@@ -679,13 +688,21 @@ app.get('/api/admin/roads', resolveTenant, tenantAuth, (req, res) => {
   const validCols = cols.map(c => c.key);
   const sortCol = validCols.includes(req.query.sort) ? req.query.sort : 'road_name';
   const sortDir = req.query.dir === 'desc' ? 'DESC' : 'ASC';
-  const orderBy = `ORDER BY ${sortCol} ${sortDir}`;
-  const rows = q
-    ? dbAll(req.db,`SELECT * FROM roads WHERE UPPER(road_name) LIKE ? OR UPPER(subdivision) LIKE ? ${orderBy} LIMIT ? OFFSET ?`,[likeUp(q),likeUp(q),limit,offset])
-    : dbAll(req.db,`SELECT * FROM roads ${orderBy} LIMIT ? OFFSET ?`,[limit,offset]);
-  const totalRow = q
-    ? dbGet(req.db,`SELECT COUNT(*) as n FROM roads WHERE UPPER(road_name) LIKE ? OR UPPER(subdivision) LIKE ?`,[likeUp(q),likeUp(q)])
-    : dbGet(req.db,`SELECT COUNT(*) as n FROM roads`);
+  const orderBy = `ORDER BY \`${sortCol}\` ${sortDir}`;
+
+  if (!q) {
+    const rows = dbAll(req.db,`SELECT * FROM roads ${orderBy} LIMIT ? OFFSET ?`,[limit,offset]);
+    const totalRow = dbGet(req.db,`SELECT COUNT(*) as n FROM roads`);
+    return res.json({ results: rows, total: totalRow.n, page, pages: Math.ceil(totalRow.n/limit) });
+  }
+
+  // Search all searchable columns
+  const searchableCols = cols.filter(c => c.searchable).map(c => c.key);
+  if (!searchableCols.includes('road_name')) searchableCols.unshift('road_name');
+  const whereParts = searchableCols.map(k => `UPPER(\`${k}\`) LIKE ?`).join(' OR ');
+  const likeParams = searchableCols.map(() => likeUp(q));
+  const rows = dbAll(req.db,`SELECT * FROM roads WHERE ${whereParts} ${orderBy} LIMIT ? OFFSET ?`,[...likeParams, limit, offset]);
+  const totalRow = dbGet(req.db,`SELECT COUNT(*) as n FROM roads WHERE ${whereParts}`,[...likeParams]);
   res.json({ results: rows, total: totalRow.n, page, pages: Math.ceil(totalRow.n/limit) });
 });
 
