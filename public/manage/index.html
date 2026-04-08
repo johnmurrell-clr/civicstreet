@@ -201,8 +201,8 @@
       </div>
       <div class="modal-field"><label>Contact Name</label><input type="text" id="f_contact_name" placeholder="John Smith" /></div>
       <div class="modal-field"><label>Contact Email</label><input type="text" id="f_contact_email" placeholder="john@wallercounty.gov" /></div>
-      <div class="modal-field"><label>Setup Fee ($)</label><input type="number" id="f_setup_fee" value="500" /></div>
-      <div class="modal-field"><label>Monthly Fee ($)</label><input type="number" id="f_monthly_fee" value="99" /></div>
+      <div class="modal-field"><label>Setup Fee ($)</label><input type="number" id="f_setup_fee" value="1500" /></div>
+      <div class="modal-field"><label>Monthly Fee ($)</label><input type="number" id="f_monthly_fee" value="150" /></div>
       <div class="modal-field"><label>Last Payment Date</label><input type="date" id="f_last_payment_date" /></div>
       <div class="modal-field"><label>Next Payment Date</label><input type="date" id="f_next_payment_date" /></div>
       <div class="modal-field full"><label>Notes</label><textarea id="f_notes" rows="2" placeholder="Any notes about this account..."></textarea></div>
@@ -358,8 +358,8 @@
     document.getElementById('f_plan').value          = data?.plan || 'standard';
     document.getElementById('f_contact_name').value  = data?.contact_name || '';
     document.getElementById('f_contact_email').value = data?.contact_email || '';
-    document.getElementById('f_setup_fee').value     = data?.setup_fee !== undefined && data?.setup_fee !== null ? data.setup_fee : 500;
-    document.getElementById('f_monthly_fee').value   = data?.monthly_fee ?? 99;
+    document.getElementById('f_setup_fee').value     = isEdit ? (data?.setup_fee ?? '') : 1500;
+    document.getElementById('f_monthly_fee').value   = isEdit ? (data?.monthly_fee ?? '') : 150;
     document.getElementById('f_last_payment_date').value = data?.last_payment_date || '';
     document.getElementById('f_next_payment_date').value = data?.next_payment_date || '';
     document.getElementById('f_notes').value          = data?.notes || '';
@@ -406,8 +406,8 @@
       plan:          document.getElementById('f_plan').value,
       contact_name:  document.getElementById('f_contact_name').value.trim(),
       contact_email: document.getElementById('f_contact_email').value.trim(),
-      setup_fee:     parseFloat(document.getElementById('f_setup_fee').value) || 0,
-      monthly_fee:   parseFloat(document.getElementById('f_monthly_fee').value) || 0,
+      setup_fee:     document.getElementById('f_setup_fee').value !== '' ? parseFloat(document.getElementById('f_setup_fee').value) : null,
+      monthly_fee:   document.getElementById('f_monthly_fee').value !== '' ? parseFloat(document.getElementById('f_monthly_fee').value) : null,
       last_payment_date: document.getElementById('f_last_payment_date').value || null,
       next_payment_date: document.getElementById('f_next_payment_date').value || null,
       notes:         document.getElementById('f_notes').value.trim(),
