@@ -192,6 +192,48 @@ async function getTenantDb(slug) {
   )`);
   db.run(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`);
 
+  // ── Migration: rename any bare reserved-word columns to col_ prefix ──────
+  const SQL_RESERVED_MIGRATE = new Set(['primary','secondary','select','from','where','table','index','group','order','by','create','drop','alter','insert','update','delete','into','values','set','and','or','not','null','true','false','join','left','right','inner','outer','on','as','in','is','like','between','exists','case','when','then','else','end','distinct','all','union','having','limit','offset','key','column','row','type','check','default','unique','references','foreign','constraint','transaction','begin','commit','rollback','view','trigger','database','schema','name','status','state','full','partial']);
+  try {
+    const tableInfo = dbAll(db, `PRAGMA table_info(roads)`);
+    const needsRename = tableInfo.filter(col => SQL_RESERVED_MIGRATE.has(col.name) && !col.name.startsWith('col_'));
+    if (needsRename.length) {
+      // SQLite doesn't support RENAME COLUMN in older versions — rebuild table
+      const allCols = tableInfo.map(c => c.name);
+      const colDefs = tableInfo.map(c => {
+        const newName = SQL_RESERVED_MIGRATE.has(c.name) && !c.name.startsWith('col_') ? `col_${c.name}` : c.name;
+        return `${newName} ${c.type}${c.notnull ? ' NOT NULL' : ''}${c.dflt_value ? ` DEFAULT ${c.dflt_value}` : ''}${c.pk ? ' PRIMARY KEY AUTOINCREMENT' : ''}`;
+      }).filter((_,i) => !tableInfo[i].pk); // exclude pk from col defs, handle separately
+      
+      const selectCols = allCols.join(',');
+      const insertCols = allCols.map(n => SQL_RESERVED_MIGRATE.has(n) && !n.startsWith('col_') ? `col_${n}` : n).join(',');
+      
+      db.run(`ALTER TABLE roads RENAME TO roads_old`);
+      db.run(`CREATE TABLE roads (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        road_name TEXT NOT NULL, road_type TEXT, subdivision TEXT,
+        notes TEXT, status TEXT DEFAULT 'Active',
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now')),
+        ${needsRename.map(c => `col_${c.name} TEXT`).join(',\n        ')},
+        ${tableInfo.filter(c => !['id','road_name','road_type','subdivision','notes','status','created_at','updated_at'].includes(c.name) && !SQL_RESERVED_MIGRATE.has(c.name)).map(c => `${c.name} TEXT`).join(',\n        ')}
+      )`);
+      db.run(`INSERT INTO roads(${insertCols}) SELECT ${selectCols} FROM roads_old`);
+      db.run(`DROP TABLE roads_old`);
+      db.run(`CREATE INDEX IF NOT EXISTS idx_rn ON roads(road_name)`);
+      db.run(`CREATE INDEX IF NOT EXISTS idx_sub ON roads(subdivision)`);
+
+      // Also fix the stored column settings
+      const getSetting2 = (k) => { const r = dbGet(db, `SELECT value FROM settings WHERE key=?`,[k]); return r ? JSON.parse(r.value) : null; };
+      const setSetting2 = (k,v) => { db.run(`INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)`,[k,JSON.stringify(v)]); };
+      const cols = getSetting2('columns');
+      if (cols) {
+        const fixed = cols.map(c => SQL_RESERVED_MIGRATE.has(c.key) && !c.key.startsWith('col_') ? { ...c, key: `col_${c.key}` } : c);
+        setSetting2('columns', fixed);
+      }
+    }
+  } catch(e) { console.error('Migration warning:', e.message); }
+
   // Seed defaults
   const getSetting = (k) => { const r = dbGet(db, `SELECT value FROM settings WHERE key=?`,[k]); return r ? JSON.parse(r.value) : null; };
   const setSetting = (k,v) => { db.run(`INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)`,[k,JSON.stringify(v)]); };
