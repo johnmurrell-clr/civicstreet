@@ -752,50 +752,50 @@ app.post('/api/admin/upload', resolveTenant, tenantAuth, csvUpload.single('file'
     if (ext==='.csv') records=parse(fs.readFileSync(filePath,'utf8'),{columns:true,skip_empty_lines:true,trim:true});
     else if (ext==='.xlsx'||ext==='.xls') { const wb=XLSX.readFile(filePath); records=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''}); }
     else { fs.unlinkSync(filePath); return res.status(400).json({error:'Unsupported file type'}); }
+
     const tenantColumns = req.getSetting('columns') || DEFAULT_COLUMNS;
     const defaultKeys = ['road_name','road_type','subdivision','notes','status','id','created_at','updated_at'];
     const existingKeys = tenantColumns.map(c => c.key);
     const csvHeaders = Object.keys(records[0]);
 
-    // Build headerKeyMap for ALL new headers BEFORE calling rowsFromRecords
+    // Step 1: ALTER TABLE for new columns OUTSIDE any transaction (DDL must be outside tx in sql.js)
     const headerKeyMap = {}; // original header -> safeKey
     let columnsUpdated = false;
     for (const header of csvHeaders) {
       const safeKey = header.toLowerCase().trim().replace(/[^a-z0-9_]/g, '_').replace(/^_+|_+$/g, '');
       if (!safeKey || defaultKeys.includes(safeKey) || existingKeys.includes(safeKey)) continue;
-      headerKeyMap[header] = safeKey;
-      // Add column to DB
       try { req.db.run(`ALTER TABLE roads ADD COLUMN ${safeKey} TEXT`); } catch(e) {}
-      // Add to tenant column settings
+      headerKeyMap[header] = safeKey;
       tenantColumns.push({ key: safeKey, label: header.trim(), width: 'flex', visible: true, searchable: false });
       existingKeys.push(safeKey);
       columnsUpdated = true;
     }
-    if (columnsUpdated) req.setSetting('columns', tenantColumns);
+    if (columnsUpdated) { req.setSetting('columns', tenantColumns); saveDb(req.db, req.dbPath); }
 
-    // Now rowsFromRecords knows about ALL columns including new ones
+    // Step 2: Build rows with full column mapping
     const rows = rowsFromRecords(records, tenantColumns, headerKeyMap);
     if (!rows.length) { fs.unlinkSync(filePath); return res.status(400).json({error:'No valid rows found'}); }
 
+    // Step 3: Insert rows in a transaction — all columns including new ones
     const customCols = tenantColumns.filter(c => !defaultKeys.includes(c.key));
+    const allKeys = ['road_name','road_type','subdivision','notes','status', ...customCols.map(c => c.key)];
+    const placeholders = allKeys.map(() => '?').join(',');
+    const insertSql = `INSERT INTO roads(${allKeys.join(',')}) VALUES(${placeholders})`;
+
     let inserted=0, skipped=0;
     dbTx(req.db, req.dbPath, () => {
       if (mode==='replace') req.db.run(`DELETE FROM roads`);
       for (const row of rows) {
         if (mode==='append' && dbGet(req.db,`SELECT id FROM roads WHERE UPPER(road_name)=?`,[row.road_name])) { skipped++; continue; }
-        try {
-          const extraKeys = customCols.map(c => c.key);
-          const extraVals = customCols.map(c => row[c.key] || null);
-          const allKeys   = ['road_name','road_type','subdivision','notes','status', ...extraKeys];
-          const allVals   = [row.road_name, row.road_type, row.subdivision, row.notes, row.status||'Active', ...extraVals];
-          req.db.run(
-            `INSERT INTO roads(${allKeys.join(',')}) VALUES(${allKeys.map(()=>'?').join(',')})`,
-            allVals
-          );
-        } catch {
-          req.db.run(`INSERT INTO roads(road_name,road_type,subdivision,notes,status) VALUES(?,?,?,?,?)`,
-            [row.road_name, row.road_type, row.subdivision, row.notes, row.status||'Active']);
-        }
+        const allVals = [
+          row.road_name,
+          row.road_type   || null,
+          row.subdivision || null,
+          row.notes       || null,
+          row.status      || 'Active',
+          ...customCols.map(c => row[c.key] !== undefined ? (row[c.key] || null) : null)
+        ];
+        req.db.run(insertSql, allVals);
         inserted++;
       }
     });
