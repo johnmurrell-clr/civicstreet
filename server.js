@@ -272,32 +272,71 @@ function likeUp(s) { return `%${(s||'').toUpperCase()}%`; }
 const PROTECTED = ['id','created_at','updated_at'];
 
 const COLUMN_ALIASES = {
-  road_name:['road_name','roadname','name','street_name','streetname','road','street','full_name'],
-  road_type:['road_type','roadtype','type','suffix','street_type'],
-  subdivision:['subdivision','subdiv','sub','plat','development'],
-  status:['status','state'], notes:['notes','note','comments','comment'],
+  road_name:['road_name','roadname','name','street_name','streetname','road','street','full_name','full name','road name','street address','address','road_full','fullname'],
+  road_type:['road_type','roadtype','type','suffix','street_type','street type','suffix','str type'],
+  subdivision:['subdivision','subdiv','sub','plat','development','subd','subdvision'],
+  status:['status','state','road_status'],
+  notes:['notes','note','comments','comment','remarks'],
 };
 
 function detectCols(headers) {
+  // Normalize headers — lowercase and trim all whitespace
+  const normalized = headers.map(h => (h||'').toLowerCase().trim());
   const map = {};
-  for (const [f,aliases] of Object.entries(COLUMN_ALIASES)) {
-    const m = aliases.find(a => headers.map(h=>h.toLowerCase().trim()).includes(a));
-    map[f] = m ? headers.find(h=>h.toLowerCase().trim()===m) : null;
+  for (const [f, aliases] of Object.entries(COLUMN_ALIASES)) {
+    const idx = aliases.findIndex(a => normalized.includes(a.toLowerCase().trim()));
+    map[f] = idx >= 0 ? headers[normalized.indexOf(aliases[idx].toLowerCase().trim())] : null;
   }
   return map;
 }
 
-function rowsFromRecords(records) {
+function rowsFromRecords(records, tenantColumns) {
   if (!records.length) return [];
-  const colMap = detectCols(Object.keys(records[0]));
-  if (!colMap.road_name) throw new Error(`No road name column found. Headers: ${Object.keys(records[0]).join(', ')}`);
-  return records.map(r => ({
-    road_name:   (r[colMap.road_name]||'').trim().toUpperCase(),
-    road_type:   colMap.road_type   ? (r[colMap.road_type]  ||'').trim() : null,
-    subdivision: colMap.subdivision ? (r[colMap.subdivision]||'').trim() : null,
-    status:      colMap.status      ? (r[colMap.status]     ||'Active').trim() : 'Active',
-    notes:       colMap.notes       ? (r[colMap.notes]      ||'').trim() : null,
-  })).filter(r => r.road_name);
+  const rawHeaders = Object.keys(records[0]);
+  const colMap = detectCols(rawHeaders);
+
+  // If no road_name matched by alias, try to match against tenant's saved column labels/keys
+  if (!colMap.road_name && tenantColumns && tenantColumns.length) {
+    const normalized = rawHeaders.map(h => (h||'').toLowerCase().trim());
+    for (const col of tenantColumns) {
+      const keyMatch   = normalized.indexOf((col.key||'').toLowerCase().trim());
+      const labelMatch = normalized.indexOf((col.label||'').toLowerCase().trim());
+      if (keyMatch >= 0)   { colMap.road_name = rawHeaders[keyMatch];   break; }
+      if (labelMatch >= 0) { colMap.road_name = rawHeaders[labelMatch]; break; }
+    }
+  }
+
+  // Last resort: use the first non-empty column
+  if (!colMap.road_name) {
+    colMap.road_name = rawHeaders[0];
+  }
+
+  // Build dynamic extra columns map — match remaining headers to tenant columns by key or label
+  const extraColMap = {};
+  if (tenantColumns) {
+    const normalized = rawHeaders.map(h => (h||'').toLowerCase().trim());
+    for (const col of tenantColumns) {
+      if (['road_name','road_type','subdivision','status','notes','id','created_at','updated_at'].includes(col.key)) continue;
+      const keyIdx   = normalized.indexOf((col.key||'').toLowerCase().trim());
+      const labelIdx = normalized.indexOf((col.label||'').toLowerCase().trim());
+      if (keyIdx >= 0)   extraColMap[col.key] = rawHeaders[keyIdx];
+      else if (labelIdx >= 0) extraColMap[col.key] = rawHeaders[labelIdx];
+    }
+  }
+
+  return records.map(r => {
+    const row = {
+      road_name:   (r[colMap.road_name]  ||'').toString().trim().toUpperCase(),
+      road_type:   colMap.road_type   ? (r[colMap.road_type]  ||'').toString().trim() : null,
+      subdivision: colMap.subdivision ? (r[colMap.subdivision]||'').toString().trim() : null,
+      status:      colMap.status      ? (r[colMap.status]     ||'Active').toString().trim() : 'Active',
+      notes:       colMap.notes       ? (r[colMap.notes]      ||'').toString().trim() : null,
+    };
+    for (const [key, header] of Object.entries(extraColMap)) {
+      row[key] = r[header] !== undefined ? (r[header]||'').toString().trim() : null;
+    }
+    return row;
+  }).filter(r => r.road_name);
 }
 
 // ── Multer instances ──────────────────────────────────────────────────────
@@ -705,15 +744,29 @@ app.post('/api/admin/upload', resolveTenant, tenantAuth, csvUpload.single('file'
     if (ext==='.csv') records=parse(fs.readFileSync(filePath,'utf8'),{columns:true,skip_empty_lines:true,trim:true});
     else if (ext==='.xlsx'||ext==='.xls') { const wb=XLSX.readFile(filePath); records=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''}); }
     else { fs.unlinkSync(filePath); return res.status(400).json({error:'Unsupported file type'}); }
-    const rows = rowsFromRecords(records);
+    const tenantColumns = req.getSetting('columns') || DEFAULT_COLUMNS;
+    const rows = rowsFromRecords(records, tenantColumns);
     if (!rows.length) { fs.unlinkSync(filePath); return res.status(400).json({error:'No valid rows found'}); }
+    const defaultKeys = ['road_name','road_type','subdivision','notes','status','id','created_at','updated_at'];
+    const customCols  = tenantColumns.filter(c => !defaultKeys.includes(c.key));
     let inserted=0, skipped=0;
     dbTx(req.db, req.dbPath, () => {
       if (mode==='replace') req.db.run(`DELETE FROM roads`);
       for (const row of rows) {
         if (mode==='append' && dbGet(req.db,`SELECT id FROM roads WHERE UPPER(road_name)=?`,[row.road_name])) { skipped++; continue; }
-        req.db.run(`INSERT INTO roads(road_name,road_type,subdivision,notes,status) VALUES(?,?,?,?,?)`,
-          [row.road_name,row.road_type,row.subdivision,row.notes,row.status]);
+        try {
+          const extraKeys = customCols.map(c => c.key);
+          const extraVals = customCols.map(c => row[c.key] || null);
+          const allKeys   = ['road_name','road_type','subdivision','notes','status', ...extraKeys];
+          const allVals   = [row.road_name, row.road_type, row.subdivision, row.notes, row.status||'Active', ...extraVals];
+          req.db.run(
+            `INSERT INTO roads(${allKeys.join(',')}) VALUES(${allKeys.map(()=>'?').join(',')})`,
+            allVals
+          );
+        } catch {
+          req.db.run(`INSERT INTO roads(road_name,road_type,subdivision,notes,status) VALUES(?,?,?,?,?)`,
+            [row.road_name, row.road_type, row.subdivision, row.notes, row.status||'Active']);
+        }
         inserted++;
       }
     });
