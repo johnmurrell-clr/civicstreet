@@ -758,13 +758,19 @@ app.post('/api/admin/upload', resolveTenant, tenantAuth, csvUpload.single('file'
     const existingKeys = tenantColumns.map(c => c.key);
     const csvHeaders = Object.keys(records[0]);
 
+    // SQLite reserved words that cannot be used as unquoted column names
+    const SQL_RESERVED = new Set(['primary','secondary','select','from','where','table','index','group','order','by','create','drop','alter','insert','update','delete','into','values','set','and','or','not','null','true','false','join','left','right','inner','outer','on','as','in','is','like','between','exists','case','when','then','else','end','distinct','all','union','having','limit','offset','key','column','row','type','check','default','unique','references','foreign','constraint','transaction','begin','commit','rollback','view','trigger','database','schema','name','status','state','full','partial']);
+
     // Step 1: ALTER TABLE for new columns OUTSIDE any transaction (DDL must be outside tx in sql.js)
     const headerKeyMap = {}; // original header -> safeKey
     let columnsUpdated = false;
     for (const header of csvHeaders) {
-      const safeKey = header.toLowerCase().trim().replace(/[^a-z0-9_]/g, '_').replace(/^_+|_+$/g, '');
-      if (!safeKey || defaultKeys.includes(safeKey) || existingKeys.includes(safeKey)) continue;
-      try { req.db.run(`ALTER TABLE roads ADD COLUMN ${safeKey} TEXT`); } catch(e) {}
+      let safeKey = header.toLowerCase().trim().replace(/[^a-z0-9_]/g, '_').replace(/^_+|_+$/g, '');
+      if (!safeKey) continue;
+      // Prefix reserved words to avoid SQL syntax errors
+      if (SQL_RESERVED.has(safeKey) || /^\d/.test(safeKey)) safeKey = 'col_' + safeKey;
+      if (defaultKeys.includes(safeKey) || existingKeys.includes(safeKey)) continue;
+      try { req.db.run(`ALTER TABLE roads ADD COLUMN \`${safeKey}\` TEXT`); } catch(e) {}
       headerKeyMap[header] = safeKey;
       tenantColumns.push({ key: safeKey, label: header.trim(), width: 'flex', visible: true, searchable: false });
       existingKeys.push(safeKey);
@@ -776,11 +782,12 @@ app.post('/api/admin/upload', resolveTenant, tenantAuth, csvUpload.single('file'
     const rows = rowsFromRecords(records, tenantColumns, headerKeyMap);
     if (!rows.length) { fs.unlinkSync(filePath); return res.status(400).json({error:'No valid rows found'}); }
 
-    // Step 3: Insert rows in a transaction — all columns including new ones
+    // Step 3: Insert rows in a transaction — quote all column names to handle reserved words
     const customCols = tenantColumns.filter(c => !defaultKeys.includes(c.key));
     const allKeys = ['road_name','road_type','subdivision','notes','status', ...customCols.map(c => c.key)];
+    const quotedKeys = allKeys.map(k => `\`${k}\``).join(',');
     const placeholders = allKeys.map(() => '?').join(',');
-    const insertSql = `INSERT INTO roads(${allKeys.join(',')}) VALUES(${placeholders})`;
+    const insertSql = `INSERT INTO roads(${quotedKeys}) VALUES(${placeholders})`;
 
     let inserted=0, skipped=0;
     dbTx(req.db, req.dbPath, () => {
