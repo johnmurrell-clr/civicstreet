@@ -747,8 +747,25 @@ app.post('/api/admin/upload', resolveTenant, tenantAuth, csvUpload.single('file'
     const tenantColumns = req.getSetting('columns') || DEFAULT_COLUMNS;
     const rows = rowsFromRecords(records, tenantColumns);
     if (!rows.length) { fs.unlinkSync(filePath); return res.status(400).json({error:'No valid rows found'}); }
+
+    // Auto-create any new columns from the CSV that don't exist yet
     const defaultKeys = ['road_name','road_type','subdivision','notes','status','id','created_at','updated_at'];
-    const customCols  = tenantColumns.filter(c => !defaultKeys.includes(c.key));
+    const existingKeys = tenantColumns.map(c => c.key);
+    const csvHeaders = Object.keys(records[0]).map(h => h.trim());
+    let columnsUpdated = false;
+    for (const header of csvHeaders) {
+      const safeKey = header.toLowerCase().trim().replace(/[^a-z0-9_]/g, '_').replace(/^_+|_+$/g, '');
+      if (!safeKey || defaultKeys.includes(safeKey) || existingKeys.includes(safeKey)) continue;
+      // Add column to DB
+      try { req.db.run(`ALTER TABLE roads ADD COLUMN ${safeKey} TEXT`); } catch(e) {}
+      // Add to tenant column settings
+      tenantColumns.push({ key: safeKey, label: header.trim(), width: 'flex', visible: true, searchable: false });
+      existingKeys.push(safeKey);
+      columnsUpdated = true;
+    }
+    if (columnsUpdated) req.setSetting('columns', tenantColumns);
+
+    const customCols = tenantColumns.filter(c => !defaultKeys.includes(c.key));
     let inserted=0, skipped=0;
     dbTx(req.db, req.dbPath, () => {
       if (mode==='replace') req.db.run(`DELETE FROM roads`);
