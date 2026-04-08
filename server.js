@@ -612,10 +612,11 @@ app.get('/api/search', resolveTenant, (req, res) => {
     const rows = dbAll(req.db,`SELECT * FROM roads ORDER BY road_name ASC LIMIT ?`,[limit]);
     return res.json({ results: rows, total: rows.length });
   }
-  // Build WHERE clause from all searchable columns
+  // Search all searchable columns EXCEPT subdivision (that's the other tab)
   const cols = req.getSetting('columns') || DEFAULT_COLUMNS;
-  const searchableCols = cols.filter(c => c.searchable).map(c => c.key);
-  // Always include road_name
+  const searchableCols = cols
+    .filter(c => c.searchable && c.key !== 'subdivision')
+    .map(c => c.key);
   if (!searchableCols.includes('road_name')) searchableCols.unshift('road_name');
   const whereParts = searchableCols.map(k => `UPPER(\`${k}\`) LIKE ?`).join(' OR ');
   const params = [...searchableCols.map(() => likeUp(q)), limit];

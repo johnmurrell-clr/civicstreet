@@ -256,8 +256,13 @@
         return;
       }
       var hlField=activeTab==='subdivision'?'subdivision':'road_name';
-      var hlFields = cols.filter(function(c){return c.searchable;}).map(function(c){return c.key;});
-      if(hlFields.indexOf('road_name')<0) hlFields.unshift('road_name');
+      var hlFields;
+      if(activeTab==='subdivision'){
+        hlFields=['subdivision'];
+      } else {
+        hlFields=cols.filter(function(c){return c.searchable&&c.key!=='subdivision';}).map(function(c){return c.key;});
+        if(hlFields.indexOf('road_name')<0) hlFields.unshift('road_name');
+      }
       list.innerHTML=data.results.map(function(r){
         var cells=cols.map(function(col){
           var field=col.dbField||col.key;
