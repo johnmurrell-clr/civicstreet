@@ -184,7 +184,17 @@ async function getTenantDb(slug) {
   )`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_rn ON roads(road_name)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_sub ON roads(subdivision)`);
-  db.run(`CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, created_at TEXT DEFAULT (datetime('now')))`);
+  db.run(`CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, username TEXT, role TEXT, created_at TEXT DEFAULT (datetime('now')))`);
+  // Migration: add username/role columns to sessions if they don't exist
+  try { db.run(`ALTER TABLE sessions ADD COLUMN username TEXT`); } catch(e) {}
+  try { db.run(`ALTER TABLE sessions ADD COLUMN role TEXT`); } catch(e) {}
+  db.run(`CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'editor',
+    created_at TEXT DEFAULT (datetime('now'))
+  )`);
   db.run(`CREATE TABLE IF NOT EXISTS audit_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     action TEXT, record_id INTEGER, details TEXT, admin_user TEXT,
@@ -567,14 +577,21 @@ async function resolveTenant(req, res, next) {
 async function tenantAuth(req, res, next) {
   const t = req.headers['x-admin-token'];
   if (!t) return res.status(401).json({ error: 'Unauthorized' });
-  const session = dbGet(req.db, `SELECT token FROM sessions WHERE token=?`,[t]);
+  const session = dbGet(req.db, `SELECT token, username, role FROM sessions WHERE token=?`,[t]);
   if (!session) return res.status(401).json({ error: 'Invalid session' });
+  req.adminUser = session.username || 'admin';
+  req.adminRole = session.role || 'admin';
+  next();
+}
+
+function requireAdmin(req, res, next) {
+  if (req.adminRole !== 'admin') return res.status(403).json({ error: 'Admin access required' });
   next();
 }
 
 function logAction(req, action, recordId, details) {
   dbRun(req.db, req.dbPath, `INSERT INTO audit_log(action,record_id,details,admin_user) VALUES(?,?,?,?)`,
-    [action, recordId||null, details||null, 'admin']);
+    [action, recordId||null, details||null, req.adminUser || 'admin']);
 }
 
 // ── PUBLIC tenant endpoints ───────────────────────────────────────────────
@@ -609,12 +626,24 @@ app.get('/api/search/subdivision', resolveTenant, (req, res) => {
 app.post('/api/admin/login', resolveTenant, (req, res) => {
   const { username, password } = req.body;
   const creds = req.getSetting('admin_credentials');
+
+  // Check primary admin credentials
   if (creds && username === creds.username && password === creds.password) {
     const t = token();
-    dbRun(req.db, req.dbPath, `INSERT INTO sessions(token) VALUES(?)`, [t]);
-    logAction(req, 'LOGIN', null, `Login: ${username}`);
-    return res.json({ token: t, county_name: req.tenant.county_name });
+    dbRun(req.db, req.dbPath, `INSERT INTO sessions(token, username, role) VALUES(?,?,?)`, [t, username, 'admin']);
+    logAction({ db: req.db, dbPath: req.dbPath, adminUser: username }, 'LOGIN', null, `Login: ${username}`);
+    return res.json({ token: t, county_name: req.tenant.county_name, role: 'admin' });
   }
+
+  // Check users table
+  const user = dbGet(req.db, `SELECT * FROM users WHERE username=?`, [username]);
+  if (user && user.password === password) {
+    const t = token();
+    dbRun(req.db, req.dbPath, `INSERT INTO sessions(token, username, role) VALUES(?,?,?)`, [t, username, user.role]);
+    logAction({ db: req.db, dbPath: req.dbPath, adminUser: username }, 'LOGIN', null, `Login: ${username}`);
+    return res.json({ token: t, county_name: req.tenant.county_name, role: user.role });
+  }
+
   res.status(401).json({ error: 'Invalid credentials' });
 });
 
@@ -627,10 +656,18 @@ app.post('/api/admin/change-password', resolveTenant, tenantAuth, (req, res) => 
   const { current_password, new_password } = req.body;
   if (!current_password || !new_password) return res.status(400).json({ error: 'All fields are required' });
   if (new_password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  // Check if primary admin
   const creds = req.getSetting('admin_credentials');
-  if (!creds || creds.password !== current_password) return res.status(401).json({ error: 'Current password is incorrect' });
-  creds.password = new_password;
-  dbRun(req.db, req.dbPath, `INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)`, ['admin_credentials', JSON.stringify(creds)]);
+  if (creds && req.adminUser === creds.username) {
+    if (creds.password !== current_password) return res.status(401).json({ error: 'Current password is incorrect' });
+    creds.password = new_password;
+    dbRun(req.db, req.dbPath, `INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)`, ['admin_credentials', JSON.stringify(creds)]);
+    return res.json({ ok: true });
+  }
+  // Check users table
+  const user = dbGet(req.db, `SELECT * FROM users WHERE username=?`, [req.adminUser]);
+  if (!user || user.password !== current_password) return res.status(401).json({ error: 'Current password is incorrect' });
+  dbRun(req.db, req.dbPath, `UPDATE users SET password=? WHERE username=?`, [new_password, req.adminUser]);
   res.json({ ok: true });
 });
 
@@ -716,8 +753,8 @@ app.delete('/api/admin/roads/:id', resolveTenant, tenantAuth, (req, res) => {
 
 // ── TENANT ADMIN SETTINGS ─────────────────────────────────────────────────
 app.get('/api/admin/columns',    resolveTenant, tenantAuth, (req,res) => res.json(req.getSetting('columns')||DEFAULT_COLUMNS));
-app.put('/api/admin/columns',    resolveTenant, tenantAuth, (req,res) => { req.setSetting('columns',req.body); logAction(req,'COLUMNS',null,'Updated columns'); res.json({ok:true}); });
-app.post('/api/admin/columns',   resolveTenant, tenantAuth, (req,res) => {
+app.put('/api/admin/columns',    resolveTenant, tenantAuth, requireAdmin, (req,res) => { req.setSetting('columns',req.body); logAction(req,'COLUMNS',null,'Updated columns'); res.json({ok:true}); });
+app.post('/api/admin/columns',   resolveTenant, tenantAuth, requireAdmin, (req,res) => {
   const { key,label,width } = req.body;
   if (!key||!label) return res.status(400).json({error:'key and label required'});
   const safeKey = key.toLowerCase().replace(/[^a-z0-9_]/g,'_');
@@ -735,9 +772,9 @@ app.delete('/api/admin/columns/:key', resolveTenant, tenantAuth, (req,res) => {
 });
 
 app.get('/api/admin/theme',  resolveTenant, tenantAuth, (req,res) => res.json({...DEFAULT_THEME,...(req.getSetting('theme')||{})}));
-app.put('/api/admin/theme',  resolveTenant, tenantAuth, (req,res) => { req.setSetting('theme',{...DEFAULT_THEME,...req.body}); logAction(req,'THEME',null,`Theme: ${req.body.preset||'Custom'}`); res.json({ok:true}); });
+app.put('/api/admin/theme',  resolveTenant, tenantAuth, requireAdmin, (req,res) => { req.setSetting('theme',{...DEFAULT_THEME,...req.body}); logAction(req,'THEME',null,`Theme: ${req.body.preset||'Custom'}`); res.json({ok:true}); });
 app.get('/api/admin/branding',resolveTenant,tenantAuth,(req,res)=>res.json(req.getSetting('branding')||{}));
-app.put('/api/admin/branding',resolveTenant,tenantAuth,(req,res)=>{ const b={...req.getSetting('branding')||{},...req.body}; b.logo_file=(req.getSetting('branding')||{}).logo_file||''; req.setSetting('branding',b); logAction(req,'BRANDING',null,'Updated branding'); res.json({ok:true}); });
+app.put('/api/admin/branding',resolveTenant,tenantAuth,requireAdmin,(req,res)=>{ const b={...req.getSetting('branding')||{},...req.body}; b.logo_file=(req.getSetting('branding')||{}).logo_file||''; req.setSetting('branding',b); logAction(req,'BRANDING',null,'Updated branding'); res.json({ok:true}); });
 
 // Logo upload
 app.post('/api/admin/logo', resolveTenant, tenantAuth, logoUpload.single('logo'), (req, res) => {
@@ -859,6 +896,51 @@ app.post('/api/admin/upload', resolveTenant, tenantAuth, csvUpload.single('file'
     logAction(req,'UPLOAD',null,`${mode}: inserted ${inserted}, skipped ${skipped} from ${req.file.originalname}`);
     res.json({ok:true,inserted,skipped,mode});
   } catch(err) { try{fs.unlinkSync(filePath);}catch{} res.status(500).json({error:err.message}); }
+});
+
+// ── USER MANAGEMENT (admin only) ─────────────────────────────────────────
+app.get('/api/admin/users', resolveTenant, tenantAuth, requireAdmin, (req, res) => {
+  const users = dbAll(req.db, `SELECT id, username, role, created_at FROM users ORDER BY created_at ASC`);
+  res.json({ users });
+});
+
+app.post('/api/admin/users', resolveTenant, tenantAuth, requireAdmin, (req, res) => {
+  const { username, password, role } = req.body;
+  if (!username || !password) return res.status(400).json({ error: 'Username and password are required' });
+  if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  if (!['admin','editor'].includes(role)) return res.status(400).json({ error: 'Role must be admin or editor' });
+  // Check username not already taken by primary admin or existing user
+  const creds = req.getSetting('admin_credentials');
+  if (creds && username === creds.username) return res.status(409).json({ error: 'Username already taken' });
+  const existing = dbGet(req.db, `SELECT id FROM users WHERE username=?`, [username]);
+  if (existing) return res.status(409).json({ error: 'Username already taken' });
+  dbRun(req.db, req.dbPath, `INSERT INTO users(username, password, role) VALUES(?,?,?)`, [username, password, role]);
+  logAction(req, 'USER_ADD', null, `Added user: ${username} (${role})`);
+  res.json({ ok: true });
+});
+
+app.delete('/api/admin/users/:id', resolveTenant, tenantAuth, requireAdmin, (req, res) => {
+  const user = dbGet(req.db, `SELECT username FROM users WHERE id=?`, [req.params.id]);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  dbRun(req.db, req.dbPath, `DELETE FROM users WHERE id=?`, [req.params.id]);
+  dbRun(req.db, req.dbPath, `DELETE FROM sessions WHERE username=?`, [user.username]);
+  logAction(req, 'USER_DELETE', null, `Removed user: ${user.username}`);
+  res.json({ ok: true });
+});
+
+app.put('/api/admin/users/:id/reset-password', resolveTenant, tenantAuth, requireAdmin, (req, res) => {
+  const { new_password } = req.body;
+  if (!new_password || new_password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  const user = dbGet(req.db, `SELECT username FROM users WHERE id=?`, [req.params.id]);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  dbRun(req.db, req.dbPath, `UPDATE users SET password=? WHERE id=?`, [new_password, req.params.id]);
+  logAction(req, 'USER_RESET_PW', null, `Reset password for: ${user.username}`);
+  res.json({ ok: true });
+});
+
+// Return current user's role
+app.get('/api/admin/me', resolveTenant, tenantAuth, (req, res) => {
+  res.json({ username: req.adminUser, role: req.adminRole });
 });
 
 app.get('/api/admin/audit', resolveTenant, tenantAuth, (req,res) => {

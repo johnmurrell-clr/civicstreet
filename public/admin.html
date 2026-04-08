@@ -207,6 +207,7 @@
     <button class="nav-tab" data-panel="theme">Theme</button>
     <button class="nav-tab" data-panel="upload">Upload File</button>
     <button class="nav-tab" data-panel="audit">Audit Log</button>
+    <button class="nav-tab" data-panel="users">Users</button>
     <button class="nav-tab" data-panel="password">Change Password</button>
   </div>
   <div class="content">
@@ -489,6 +490,42 @@
       </div>
     </div>
 
+    <!-- USERS -->
+    <div class="panel" id="panel-users">
+      <div class="card">
+        <h3>Staff Users</h3>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6">
+          Add staff members who need access to this portal. <strong>Admin</strong> users have full access.
+          <strong>Editor</strong> users can manage records and upload files but cannot change columns, branding, or theme.
+        </p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;padding:16px;background:var(--fog);border:1px solid var(--border);border-radius:4px;margin-bottom:20px">
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <label style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--steel)">Username</label>
+            <input type="text" id="newUserName" placeholder="e.g. jsmith" style="padding:8px 10px;border:1px solid var(--border);border-radius:3px;font-family:'DM Mono',monospace;font-size:13px;outline:none;color:var(--navy);width:160px" />
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <label style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--steel)">Password</label>
+            <input type="text" id="newUserPass" placeholder="Min 8 characters" style="padding:8px 10px;border:1px solid var(--border);border-radius:3px;font-family:'DM Mono',monospace;font-size:13px;outline:none;color:var(--navy);width:180px" />
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <label style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--steel)">Role</label>
+            <select id="newUserRole" style="padding:8px 10px;border:1px solid var(--border);border-radius:3px;font-family:'DM Mono',monospace;font-size:13px;outline:none;color:var(--navy);width:120px">
+              <option value="editor">Editor</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <button class="btn btn-add" id="addUserBtn" style="margin-bottom:1px">+ Add User</button>
+          <span id="userAddError" style="font-size:12px;color:var(--red);display:none"></span>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="data-table" id="usersTable">
+            <thead><tr><th>Username</th><th>Role</th><th>Added</th><th>Actions</th></tr></thead>
+            <tbody id="usersBody"><tr><td colspan="4" style="padding:30px;text-align:center;color:var(--muted)">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- CHANGE PASSWORD -->
     <div class="panel" id="panel-password">
       <div class="card" style="max-width:420px">
@@ -530,6 +567,7 @@
 
 <script>
   let TOKEN = sessionStorage.getItem('adminToken') || '';
+  let USER_ROLE = sessionStorage.getItem('adminRole') || 'editor';
   let columns = [];
   let currentPage = 1;
   let uploadMode = 'append';
@@ -557,18 +595,31 @@
       const res=await fetch('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
       const data=await res.json();
       if(!res.ok){errEl.style.display='block';return;}
-      TOKEN=data.token; sessionStorage.setItem('adminToken',TOKEN); showApp();
+      TOKEN=data.token; sessionStorage.setItem('adminToken',TOKEN);
+      USER_ROLE = data.role || 'editor';
+      sessionStorage.setItem('adminRole', USER_ROLE);
+      showApp();
     } catch{errEl.style.display='block';}
   }
 
   async function checkAuth() {
     const res=await fetch('/api/admin/roads?limit=1',{headers:H()});
-    if(res.ok) showApp(); else {TOKEN='';sessionStorage.removeItem('adminToken');}
+    if(res.ok) {
+      const me = await fetch('/api/admin/me',{headers:H()});
+      if(me.ok){ const d=await me.json(); USER_ROLE=d.role||'editor'; sessionStorage.setItem('adminRole',USER_ROLE); }
+      showApp();
+    } else {TOKEN='';sessionStorage.removeItem('adminToken');sessionStorage.removeItem('adminRole');}
   }
 
   function showApp() {
     document.getElementById('loginScreen').style.display='none';
     document.getElementById('app').style.display='block';
+    // Hide admin-only tabs for editors
+    const adminOnlyTabs = ['columns','branding','theme','users'];
+    adminOnlyTabs.forEach(tab => {
+      const el = document.querySelector(`.nav-tab[data-panel="${tab}"]`);
+      if (el) el.style.display = USER_ROLE === 'admin' ? '' : 'none';
+    });
     loadColumns().then(()=>{ loadStats(); loadRecords(); });
   }
 
@@ -610,6 +661,7 @@
       btn.classList.add('active');
       document.getElementById('panel-'+btn.dataset.panel).classList.add('active');
       if(btn.dataset.panel==='audit') loadAudit();
+      if(btn.dataset.panel==='users') loadUsers();
       if(btn.dataset.panel==='columns') renderColManager();
       if(btn.dataset.panel==='branding') loadBranding();
       if(btn.dataset.panel==='theme') loadTheme();
@@ -1082,6 +1134,63 @@
     applyPreset(0);
     toast('Default theme loaded — click Save to apply.', 'success');
   });
+
+  // ── USERS ─────────────────────────────────────────────────────────────
+  async function loadUsers() {
+    const res = await fetch('/api/admin/users', { headers: H() });
+    if (!res.ok) { document.getElementById('usersBody').innerHTML='<tr><td colspan="4" style="padding:30px;text-align:center;color:var(--muted)">Unable to load users.</td></tr>'; return; }
+    const data = await res.json();
+    const tbody = document.getElementById('usersBody');
+    if (!data.users.length) {
+      tbody.innerHTML='<tr><td colspan="4" style="padding:30px;text-align:center;color:var(--muted)">No additional users yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.users.map(u => `
+      <tr>
+        <td class="mono">${esc(u.username)}</td>
+        <td><span style="background:${u.role==='admin'?'var(--sky)':'var(--green)'};color:#fff;padding:2px 8px;border-radius:3px;font-size:11px;font-family:'DM Mono',monospace;text-transform:uppercase">${esc(u.role)}</span></td>
+        <td style="font-size:12px;color:var(--muted);font-family:'DM Mono',monospace">${fmtDate(u.created_at)}</td>
+        <td><div class="td-actions">
+          <button class="btn btn-edit" onclick="resetUserPw(${u.id},'${esc(u.username)}')">Reset PW</button>
+          <button class="btn btn-del" onclick="deleteUser(${u.id},'${esc(u.username)}')">Remove</button>
+        </div></td>
+      </tr>`).join('');
+  }
+
+  document.getElementById('addUserBtn').addEventListener('click', async () => {
+    const username = document.getElementById('newUserName').value.trim();
+    const password = document.getElementById('newUserPass').value.trim();
+    const role     = document.getElementById('newUserRole').value;
+    const errEl    = document.getElementById('userAddError');
+    errEl.style.display = 'none';
+    if (!username || !password) { errEl.textContent='Username and password are required.'; errEl.style.display='inline'; return; }
+    const res = await fetch('/api/admin/users', { method:'POST', headers:H(), body:JSON.stringify({username,password,role}) });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent=data.error||'Failed to add user.'; errEl.style.display='inline'; return; }
+    document.getElementById('newUserName').value='';
+    document.getElementById('newUserPass').value='';
+    toast(`User "${username}" added.`, 'success');
+    loadUsers();
+  });
+
+  async function resetUserPw(id, username) {
+    const pw = prompt(`New password for "${username}" (min 8 characters):`);
+    if (!pw) return;
+    if (pw.length < 8) { toast('Password must be at least 8 characters.', 'error'); return; }
+    const res = await fetch(`/api/admin/users/${id}/reset-password`, { method:'PUT', headers:H(), body:JSON.stringify({new_password:pw}) });
+    if (res.ok) toast(`Password reset for "${username}".`, 'success');
+    else toast('Reset failed.', 'error');
+  }
+
+  async function deleteUser(id, username) {
+    if (!confirm(`Remove user "${username}"? They will be logged out immediately.`)) return;
+    const res = await fetch(`/api/admin/users/${id}`, { method:'DELETE', headers:H() });
+    if (res.ok) { toast(`"${username}" removed.`, 'success'); loadUsers(); }
+    else toast('Failed to remove user.', 'error');
+  }
+
+  window.resetUserPw = resetUserPw;
+  window.deleteUser  = deleteUser;
 </script>
 </body>
 </html>
