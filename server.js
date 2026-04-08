@@ -290,7 +290,7 @@ function detectCols(headers) {
   return map;
 }
 
-function rowsFromRecords(records, tenantColumns) {
+function rowsFromRecords(records, tenantColumns, headerKeyMap) {
   if (!records.length) return [];
   const rawHeaders = Object.keys(records[0]);
   const colMap = detectCols(rawHeaders);
@@ -307,20 +307,28 @@ function rowsFromRecords(records, tenantColumns) {
   }
 
   // Last resort: use the first non-empty column
-  if (!colMap.road_name) {
-    colMap.road_name = rawHeaders[0];
-  }
+  if (!colMap.road_name) colMap.road_name = rawHeaders[0];
 
-  // Build dynamic extra columns map — match remaining headers to tenant columns by key or label
-  const extraColMap = {};
+  // Build extra columns map from tenant columns (existing) + headerKeyMap (new from this upload)
+  const defaultKeys = ['road_name','road_type','subdivision','status','notes','id','created_at','updated_at'];
+  const extraColMap = {}; // safeKey -> original header name
+
+  // From existing tenant columns
   if (tenantColumns) {
     const normalized = rawHeaders.map(h => (h||'').toLowerCase().trim());
     for (const col of tenantColumns) {
-      if (['road_name','road_type','subdivision','status','notes','id','created_at','updated_at'].includes(col.key)) continue;
+      if (defaultKeys.includes(col.key)) continue;
       const keyIdx   = normalized.indexOf((col.key||'').toLowerCase().trim());
       const labelIdx = normalized.indexOf((col.label||'').toLowerCase().trim());
-      if (keyIdx >= 0)   extraColMap[col.key] = rawHeaders[keyIdx];
+      if (keyIdx >= 0)        extraColMap[col.key] = rawHeaders[keyIdx];
       else if (labelIdx >= 0) extraColMap[col.key] = rawHeaders[labelIdx];
+    }
+  }
+
+  // From new headers discovered during this upload (headerKeyMap: { 'Pre Dir': 'pre_dir', ... })
+  if (headerKeyMap) {
+    for (const [header, safeKey] of Object.entries(headerKeyMap)) {
+      if (!defaultKeys.includes(safeKey)) extraColMap[safeKey] = header;
     }
   }
 
@@ -745,17 +753,17 @@ app.post('/api/admin/upload', resolveTenant, tenantAuth, csvUpload.single('file'
     else if (ext==='.xlsx'||ext==='.xls') { const wb=XLSX.readFile(filePath); records=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''}); }
     else { fs.unlinkSync(filePath); return res.status(400).json({error:'Unsupported file type'}); }
     const tenantColumns = req.getSetting('columns') || DEFAULT_COLUMNS;
-    const rows = rowsFromRecords(records, tenantColumns);
-    if (!rows.length) { fs.unlinkSync(filePath); return res.status(400).json({error:'No valid rows found'}); }
-
-    // Auto-create any new columns from the CSV that don't exist yet
     const defaultKeys = ['road_name','road_type','subdivision','notes','status','id','created_at','updated_at'];
     const existingKeys = tenantColumns.map(c => c.key);
-    const csvHeaders = Object.keys(records[0]).map(h => h.trim());
+    const csvHeaders = Object.keys(records[0]);
+
+    // Build headerKeyMap for ALL new headers BEFORE calling rowsFromRecords
+    const headerKeyMap = {}; // original header -> safeKey
     let columnsUpdated = false;
     for (const header of csvHeaders) {
       const safeKey = header.toLowerCase().trim().replace(/[^a-z0-9_]/g, '_').replace(/^_+|_+$/g, '');
       if (!safeKey || defaultKeys.includes(safeKey) || existingKeys.includes(safeKey)) continue;
+      headerKeyMap[header] = safeKey;
       // Add column to DB
       try { req.db.run(`ALTER TABLE roads ADD COLUMN ${safeKey} TEXT`); } catch(e) {}
       // Add to tenant column settings
@@ -764,6 +772,10 @@ app.post('/api/admin/upload', resolveTenant, tenantAuth, csvUpload.single('file'
       columnsUpdated = true;
     }
     if (columnsUpdated) req.setSetting('columns', tenantColumns);
+
+    // Now rowsFromRecords knows about ALL columns including new ones
+    const rows = rowsFromRecords(records, tenantColumns, headerKeyMap);
+    if (!rows.length) { fs.unlinkSync(filePath); return res.status(400).json({error:'No valid rows found'}); }
 
     const customCols = tenantColumns.filter(c => !defaultKeys.includes(c.key));
     let inserted=0, skipped=0;
