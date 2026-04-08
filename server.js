@@ -800,12 +800,39 @@ app.post('/api/admin/upload', resolveTenant, tenantAuth, csvUpload.single('file'
     }
     if (columnsUpdated) { req.setSetting('columns', tenantColumns); saveDb(req.db, req.dbPath); }
 
+    // Step 1b: Hide default columns that aren't mapped from the CSV
+    // Build a set of all safe keys that came from the CSV
+    const csvSafeKeys = new Set(Object.values(headerKeyMap));
+    // Also add any default keys that were directly matched by the CSV headers
+    const colMap = detectCols(csvHeaders);
+    Object.values(colMap).forEach(h => { if (h) csvSafeKeys.add(h.toLowerCase().trim()); });
+
+    // Default columns to hide if not in CSV: road_type, subdivision, notes
+    // Always keep road_name and status visible
+    const defaultsToHide = ['road_type','subdivision','notes'];
+    let visibilityUpdated = false;
+    const finalColumns = tenantColumns.map(col => {
+      if (defaultsToHide.includes(col.key)) {
+        // Hide if the CSV doesn't have a header that maps to this default key
+        const csvCoversThis = colMap[col.key] !== null && colMap[col.key] !== undefined;
+        if (!csvCoversThis && col.visible !== false) {
+          visibilityUpdated = true;
+          return { ...col, visible: false };
+        }
+      }
+      return col;
+    });
+    if (visibilityUpdated || columnsUpdated) {
+      req.setSetting('columns', finalColumns);
+      saveDb(req.db, req.dbPath);
+    }
+
     // Step 2: Build rows with full column mapping
-    const rows = rowsFromRecords(records, tenantColumns, headerKeyMap);
+    const rows = rowsFromRecords(records, finalColumns, headerKeyMap);
     if (!rows.length) { fs.unlinkSync(filePath); return res.status(400).json({error:'No valid rows found'}); }
 
     // Step 3: Insert rows in a transaction — quote all column names to handle reserved words
-    const customCols = tenantColumns.filter(c => !defaultKeys.includes(c.key));
+    const customCols = finalColumns.filter(c => !defaultKeys.includes(c.key));
     const allKeys = ['road_name','road_type','subdivision','notes','status', ...customCols.map(c => c.key)];
     const quotedKeys = allKeys.map(k => `\`${k}\``).join(',');
     const placeholders = allKeys.map(() => '?').join(',');
