@@ -321,6 +321,7 @@
             }
             <button class="btn" style="background:#7f1d1d;color:#fff;padding:5px 12px;font-size:11px" onclick="deleteTenant('${esc(t.slug)}','${esc(t.county_name)}')">Delete</button>
             <button class="btn" style="background:#1a5276;color:#fff;padding:5px 12px;font-size:11px" onclick="emailCreds('${esc(t.slug)}','${esc(t.county_name)}')">Email Login</button>
+            <button class="btn" style="background:#4a235a;color:#fff;padding:5px 12px;font-size:11px" onclick="resetSchema('${esc(t.slug)}','${esc(t.county_name)}')">Reset Schema</button>
           </div>
         </td>
       </tr>`).join('');
@@ -475,6 +476,14 @@
     else toast(data.error || 'Failed to send email.', 'error');
   }
 
+  async function resetSchema(slug, name) {
+    if (!confirm(`Reset schema for "${name}"?\n\nThis will drop and rebuild the roads table, removing ALL road records and custom columns. Branding, theme, and login credentials are preserved.\n\nThis cannot be undone.`)) return;
+    const res = await fetch(`/manage/api/tenants/${slug}/reset-schema`, { method:'POST', headers: H() });
+    const data = await res.json();
+    if (res.ok) { toast(`Schema reset for ${name}. Ready for fresh upload.`, 'success'); loadTenants(); }
+    else toast(data.error || 'Reset failed.', 'error');
+  }
+
   // Make functions global for onclick
   window.editTenant = editTenant;
   window.resetPass = resetPass;
@@ -482,6 +491,7 @@
   window.activateTenant = activateTenant;
   window.deleteTenant = deleteTenant;
   window.emailCreds = emailCreds;
+  window.resetSchema = resetSchema;
 
   function esc(s) { return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
   function toast(msg, type='success') { const el=document.getElementById('toast'); el.textContent=msg; el.className=`toast show ${type}`; setTimeout(()=>el.classList.remove('show'),3000); }

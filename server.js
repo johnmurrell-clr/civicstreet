@@ -555,6 +555,28 @@ app.post('/manage/api/tenants/:slug/activate', superAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
+// Reset tenant roads schema — drops all road data and custom columns, preserves settings/branding/credentials
+app.post('/manage/api/tenants/:slug/reset-schema', superAuth, async (req, res) => {
+  try {
+    const { db, dbPath } = await getTenantDb(req.params.slug);
+    // Drop and recreate roads table cleanly
+    db.run(`DROP TABLE IF EXISTS roads`);
+    db.run(`CREATE TABLE roads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      road_name TEXT NOT NULL, road_type TEXT, subdivision TEXT,
+      notes TEXT, status TEXT DEFAULT 'Active',
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_rn ON roads(road_name)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_sub ON roads(subdivision)`);
+    // Reset column settings back to defaults
+    db.run(`INSERT OR REPLACE INTO settings(key,value) VALUES(?,?)`, ['columns', JSON.stringify(DEFAULT_COLUMNS)]);
+    saveDb(db, dbPath);
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // Super admin stats
 app.get('/manage/api/stats', superAuth, async (req, res) => {
   const mdb = await getMasterDb();
